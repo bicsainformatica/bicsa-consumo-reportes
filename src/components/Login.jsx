@@ -221,7 +221,7 @@ const Login = ({ onLogin }) => {
             Iniciar Sesión
           </h2>
           <p className="mt-2 text-sm font-medium text-slate-500">
-            Seguimiento Consumo MiPymes V2 - BICSA
+            Registro Consumo MiPymes V3-BICSA
           </p>
         </div>
 

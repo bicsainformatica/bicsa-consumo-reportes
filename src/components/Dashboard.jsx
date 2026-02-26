@@ -693,7 +693,7 @@ const Dashboard = ({ onExportExcel }) => {
                             className="bg-gradient-to-br from-white to-orange-50 p-4 rounded-xl border-2 border-orange-100 shadow-sm text-center transform hover:scale-105 hover:shadow-md hover:border-orange-300 transition-all duration-200 cursor-default"
                           >
                             <div className="text-xs font-bold text-orange-800 mb-1 uppercase tracking-widest opacity-80">
-                              {new Date(mes + '-01').toLocaleDateString('es-ES', { year: 'numeric', month: 'short' })}
+                              {new Date(mes + '-01T00:00:00').toLocaleDateString('es-ES', { year: 'numeric', month: 'short' })}
                             </div>
                             
                             <div className="text-3xl md:text-4xl font-black text-orange-600 drop-shadow-sm leading-none my-2">
@@ -763,8 +763,7 @@ const Dashboard = ({ onExportExcel }) => {
               </div>
               <div>
                 <p className="text-sm text-orange-800 font-medium">
-                  <strong>Sincronización en tiempo real:</strong> Los datos se actualizan automáticamente desde los servidores de BICSA. 
-                  Si tienes dudas sobre las métricas mostradas, comunícate con el administrador del sistema.
+                  <strong>Versión V3:</strong> Los datos se actualizan de acuerdo a los datos de la intranet BICSA.
                 </p>
               </div>
             </div>

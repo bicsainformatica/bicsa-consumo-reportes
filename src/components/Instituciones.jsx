@@ -1,5 +1,5 @@
 // src/components/Instituciones.jsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Building, 
   PlusCircle, 
@@ -13,19 +13,31 @@ import {
   History,
   Clock,
   Search,
-  BarChart2
+  BarChart2,
+  Filter,
+  ShieldAlert,
+  ClipboardList,
+  FileSpreadsheet, // ✨ NUEVO ICONO EXCEL
+  Tag,             // ✨ NUEVO ICONO CATEGORIA
+  Download         // ✨ NUEVO ICONO DESCARGA
 } from 'lucide-react';
 import { useInstituciones } from '../hooks/useFirebase';
+import { auth, db } from '../firebase';
+import { doc, onSnapshot, collection, query, where, orderBy } from 'firebase/firestore';
 import { BotonComentarios } from './Comentarios';
 import { useContadorComentarios } from '../hooks/useFirebase';
 import { MessageCircle } from 'lucide-react';
+import * as XLSX from 'xlsx'; // ✨ IMPORT EXCEL OBLIGATORIO
 
 const ModalAgregarInstitucion = ({ onClose, onSave }) => {
   const [nombre, setNombre] = useState('');
+  const [categoria, setCategoria] = useState('BUSINESS Micro'); // ✨ NUEVO ESTADO CATEGORIA
   const [consultas, setConsultas] = useState('');
   const [duracion, setDuracion] = useState(6);
   const [fechaInicio, setFechaInicio] = useState('');
   const [saving, setSaving] = useState(false);
+  const [montoTotal, setMontoTotal] = useState('');
+  const [plazoMeses, setPlazoMeses] = useState('1');
 
   const obtenerFechaHoy = () => {
     const hoy = new Date();
@@ -41,13 +53,17 @@ const ModalAgregarInstitucion = ({ onClose, onSave }) => {
       setSaving(true);
       const resultado = await onSave({ 
         nombre: nombre.trim(), 
+        categoria,
         consultas: parseInt(consultas), 
         duracion: parseInt(duracion),
-        fechaInicio: fechaInicio
+        fechaInicio: fechaInicio,
+        montoTotal: parseFloat(montoTotal) || 0, // ✨ NUEVO
+        plazoMeses: parseInt(plazoMeses) || 1    // ✨ NUEVO
       });
       
       if (resultado.success) {
         setNombre('');
+        setCategoria('BUSINESS Micro');
         setConsultas('');
         setDuracion(6);
         setFechaInicio('');
@@ -63,8 +79,8 @@ const ModalAgregarInstitucion = ({ onClose, onSave }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white p-8 rounded-lg shadow-2xl w-full max-w-md">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white p-8 rounded-lg shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-bold text-gray-800">Nueva Institución</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600" disabled={saving}>
@@ -80,11 +96,48 @@ const ModalAgregarInstitucion = ({ onClose, onSave }) => {
               type="text"
               value={nombre}
               onChange={(e) => setNombre(e.target.value)}
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
               placeholder="Ej: Cooperativa XYZ"
               disabled={saving}
             />
           </div>
+          
+          {/* ✨ NUEVO CAMPO CATEGORÍA */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Plan / Categoría
+            </label>
+            <select 
+              value={categoria}
+              onChange={(e) => setCategoria(e.target.value)}
+              className="w-full p-3 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none"
+              disabled={saving}
+            >
+              <option value="BUSINESS Micro">BUSINESS Micro</option>
+              <option value="BUSINESS Pequeña">BUSINESS Pequeña</option>
+              <option value="BUSINESS Mediana">BUSINESS Mediana</option>
+              <option value="Plan Premium">Plan Premium</option>
+              <option value="Plan Premium Gold">Plan Premium Gold</option>
+            </select>
+          </div>
+
+          {/* ✨ NUEVOS CAMPOS FINANCIEROS */}
+          <div className="grid grid-cols-2 gap-4 border-t border-gray-100 pt-4 mt-2">
+            <div className="col-span-2 md:col-span-1">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Monto Total (Gs)</label>
+              <input type="number" value={montoTotal} onChange={(e) => setMontoTotal(e.target.value)} className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Ej: 1500000" disabled={saving} />
+            </div>
+            <div className="col-span-2 md:col-span-1">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Plazo de Pago</label>
+              <select value={plazoMeses} onChange={(e) => setPlazoMeses(e.target.value)} className="w-full p-3 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none" disabled={saving}>
+                <option value="1">1 Mes (Al contado)</option>
+                {[2,3,4,5,6,7,8,9,10,11,12].map(num => (
+                  <option key={num} value={num}>{num} Meses</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Cantidad de Consultas Asignadas
@@ -93,7 +146,7 @@ const ModalAgregarInstitucion = ({ onClose, onSave }) => {
               type="number"
               value={consultas}
               onChange={(e) => setConsultas(e.target.value)}
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
               placeholder="Ej: 120000"
               min="1"
               disabled={saving}
@@ -106,12 +159,12 @@ const ModalAgregarInstitucion = ({ onClose, onSave }) => {
             <select 
               value={duracion}
               onChange={(e) => setDuracion(parseInt(e.target.value))}
-              className="w-full p-3 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full p-3 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
               disabled={saving}
             >
-              <option value={3}>3 meses</option>
-              <option value={6}>6 meses</option>
-              <option value={12}>12 meses</option>
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(num => (
+                <option key={num} value={num}>{num} {num === 1 ? 'mes' : 'meses'}</option>
+              ))}
             </select>
           </div>
           <div>
@@ -123,7 +176,7 @@ const ModalAgregarInstitucion = ({ onClose, onSave }) => {
                 type="date"
                 value={fechaInicio}
                 onChange={(e) => setFechaInicio(e.target.value)}
-                className="flex-1 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="flex-1 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
                 disabled={saving}
               />
               <button
@@ -164,6 +217,9 @@ const ModalAgregarInstitucion = ({ onClose, onSave }) => {
 
 const ModalEditarInstitucion = ({ institucion, onClose, onSave }) => {
   const [nombre, setNombre] = useState(institucion.nombre);
+  const [categoria, setCategoria] = useState(institucion.categoria || 'Sin Categoría'); // ✨ ESTADO CATEGORIA
+  const [montoTotal, setMontoTotal] = useState(institucion.montoTotal || ''); // ✨ NUEVO
+  const [plazoMeses, setPlazoMeses] = useState(institucion.plazoMeses || '1'); // ✨ NUEVO
   const [consultas, setConsultas] = useState(institucion.contrato.asignadas);
   const [duracion, setDuracion] = useState(institucion.contrato.duracionMeses);
   const [estado, setEstado] = useState(institucion.estado || 'activo');
@@ -213,9 +269,12 @@ const ModalEditarInstitucion = ({ institucion, onClose, onSave }) => {
       try {
         const datosActualizados = { 
           nombre: nombre.trim(), 
+          categoria, // ✨ PASAR CATEGORIA
           consultas: parseInt(consultas), 
           duracion: parseInt(duracion),
-          estado: estado
+          estado: estado,
+          montoTotal: parseFloat(montoTotal) || 0, // ✨ NUEVO
+          plazoMeses: parseInt(plazoMeses) || 1    // ✨ NUEVO
         };
 
         if (estado === 'renovacion' && nuevaFechaInicio) {
@@ -271,9 +330,48 @@ const ModalEditarInstitucion = ({ institucion, onClose, onSave }) => {
               type="text"
               value={nombre}
               onChange={(e) => setNombre(e.target.value)}
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
               disabled={saving}
             />
+          </div>
+
+          {/* ✨ NUEVO CAMPO CATEGORÍA EDITAR */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Plan / Categoría
+            </label>
+            <select 
+              value={categoria}
+              onChange={(e) => setCategoria(e.target.value)}
+              className="w-full p-3 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none"
+              disabled={saving}
+            >
+              <option value="BUSINESS Micro">BUSINESS Micro</option>
+              <option value="BUSINESS Pequeña">BUSINESS Pequeña</option>
+              <option value="BUSINESS Mediana">BUSINESS Mediana</option>
+              <option value="Plan Premium">Plan Premium</option>
+              <option value="Plan Premium Gold">Plan Premium Gold</option>
+              {(!institucion.categoria || institucion.categoria === 'Sin Categoría') && (
+                <option value="Sin Categoría">Sin Categoría (Requiere Actualizar)</option>
+              )}
+            </select>
+          </div>
+
+          {/* ✨ NUEVOS CAMPOS FINANCIEROS */}
+          <div className="grid grid-cols-2 gap-4 border-t border-gray-100 pt-4 mt-2">
+            <div className="col-span-2 md:col-span-1">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Monto Total (Gs)</label>
+              <input type="number" value={montoTotal} onChange={(e) => setMontoTotal(e.target.value)} className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Ej: 1500000" disabled={saving} />
+            </div>
+            <div className="col-span-2 md:col-span-1">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Plazo de Pago</label>
+              <select value={plazoMeses} onChange={(e) => setPlazoMeses(e.target.value)} className="w-full p-3 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none" disabled={saving}>
+                <option value="1">1 Mes (Al contado)</option>
+                {[2,3,4,5,6,7,8,9,10,11,12].map(num => (
+                  <option key={num} value={num}>{num} Meses</option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <div>
@@ -283,7 +381,7 @@ const ModalEditarInstitucion = ({ institucion, onClose, onSave }) => {
             <select 
               value={estado}
               onChange={(e) => setEstado(e.target.value)}
-              className="w-full p-3 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full p-3 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
               disabled={saving}
             >
               <option value="activo">Activo</option>
@@ -314,7 +412,7 @@ const ModalEditarInstitucion = ({ institucion, onClose, onSave }) => {
                     type="date"
                     value={nuevaFechaInicio}
                     onChange={(e) => setNuevaFechaInicio(e.target.value)}
-                    className="flex-1 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="flex-1 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
                     disabled={saving}
                   />
                   <button
@@ -336,7 +434,7 @@ const ModalEditarInstitucion = ({ institucion, onClose, onSave }) => {
                   value={comentarioRenovacion}
                   onChange={(e) => setComentarioRenovacion(e.target.value)}
                   placeholder="Ej: Renovación mismo plan desde 14/09/2025."
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none outline-none"
                   rows="3"
                   disabled={saving}
                   maxLength="500"
@@ -361,7 +459,7 @@ const ModalEditarInstitucion = ({ institucion, onClose, onSave }) => {
               type="number"
               value={consultas}
               onChange={(e) => setConsultas(e.target.value)}
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
               min="1"
               disabled={saving}
             />
@@ -374,12 +472,12 @@ const ModalEditarInstitucion = ({ institucion, onClose, onSave }) => {
             <select 
               value={duracion}
               onChange={(e) => setDuracion(parseInt(e.target.value))}
-              className="w-full p-3 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full p-3 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
               disabled={saving}
             >
-              <option value={3}>3 meses</option>
-              <option value={6}>6 meses</option>
-              <option value={12}>12 meses</option>
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(num => (
+                <option key={num} value={num}>{num} {num === 1 ? 'mes' : 'meses'}</option>
+              ))}
             </select>
           </div>
         </div>
@@ -490,7 +588,7 @@ const ModalConsumoMensual = ({ institucion, onClose, onSave }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white p-8 rounded-lg shadow-2xl w-full max-w-md">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-bold text-gray-800">Registrar Consumo Mensual</h2>
@@ -533,7 +631,7 @@ const ModalConsumoMensual = ({ institucion, onClose, onSave }) => {
                 <select 
                   value={mes}
                   onChange={(e) => setMes(e.target.value)}
-                  className="w-full p-3 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full p-3 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none"
                   disabled={saving}
                 >
                   <option value="">Seleccionar mes pendiente...</option>
@@ -553,7 +651,7 @@ const ModalConsumoMensual = ({ institucion, onClose, onSave }) => {
                   type="number"
                   value={consumo}
                   onChange={(e) => setConsumo(e.target.value)}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
                   placeholder="Ej: 5000"
                   min="0"
                   max={institucion.contrato.asignadas - institucion.contrato.consumidas}
@@ -632,11 +730,11 @@ const ModalEditarConsumoMes = ({ institucion, mesSeleccionado, onClose, onSave }
     }
   };
 
-  const fechaMes = new Date(mesSeleccionado + '-01');
+  const fechaMes = new Date(mesSeleccionado + '-01T00:00:00');
   const nombreMes = fechaMes.toLocaleDateString('es-ES', { year: 'numeric', month: 'long' });
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white p-8 rounded-lg shadow-2xl w-full max-w-md">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-bold text-gray-800">Editar Consumo Mensual</h2>
@@ -661,7 +759,7 @@ const ModalEditarConsumoMes = ({ institucion, mesSeleccionado, onClose, onSave }
               type="number"
               value={consumo}
               onChange={(e) => setConsumo(e.target.value)}
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
               placeholder="Ej: 5000"
               min="0"
               disabled={saving}
@@ -694,7 +792,6 @@ const ModalEditarConsumoMes = ({ institucion, mesSeleccionado, onClose, onSave }
   );
 };
 
-{/* HISTORIAL */}
 const ModalHistorial = ({ institucion, onClose }) => {
   const historial = institucion.historial || [];
 
@@ -757,7 +854,6 @@ const ModalHistorial = ({ institucion, onClose }) => {
                 </div>
               </div>
 
-              {/* Mostrar último comentario de renovación si existe */}
               {institucion.ultimaRenovacion?.comentario && (
                 <div className="mt-4 pt-4 border-t border-blue-200">
                   <div className="bg-white p-4 rounded-lg border border-blue-100">
@@ -849,7 +945,6 @@ const ModalHistorial = ({ institucion, onClose }) => {
                         </div>
                       </div>
 
-                      {/* MOSTRAR COMENTARIO DE RENOVACIÓN */}
                       {periodo.comentario && (
                         <div className="mb-4">
                           <div className="bg-white p-4 rounded-lg border border-gray-200">
@@ -868,7 +963,6 @@ const ModalHistorial = ({ institucion, onClose }) => {
                         </div>
                       )}
 
-                      {/* Consumo mensual del período */}
                       {periodo.consumoPorMes && Object.keys(periodo.consumoPorMes).length > 0 && (
                         <div>
                           <h5 className="text-sm font-medium text-gray-700 mb-3">Consumo Mensual del Período:</h5>
@@ -878,7 +972,7 @@ const ModalHistorial = ({ institucion, onClose }) => {
                               .map(([mes, consumo]) => (
                               <div key={mes} className="bg-white p-3 rounded border text-center">
                                 <div className="text-xs text-gray-600 font-medium">
-                                  {new Date(mes + '-01').toLocaleDateString('es-ES', { year: 'numeric', month: 'short' })}
+                                  {new Date(mes + '-01T00:00:00').toLocaleDateString('es-ES', { year: 'numeric', month: 'short' })}
                                 </div>
                                 <div className="font-bold text-sm text-gray-800">{consumo.toLocaleString()}</div>
                               </div>
@@ -887,7 +981,6 @@ const ModalHistorial = ({ institucion, onClose }) => {
                         </div>
                       )}
 
-                      {/* Estadísticas del período */}
                       <div className="mt-4 pt-4 border-t border-gray-300">
                         <div className="grid grid-cols-3 gap-4 text-center">
                           <div>
@@ -933,30 +1026,180 @@ const ModalHistorial = ({ institucion, onClose }) => {
   );
 };
 
-const Instituciones = ({ userRole }) => {
+const ModalAuditoria = ({ institucion, onClose }) => {
+  const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [fechaDesde, setFechaDesde] = useState('');
+  const [fechaHasta, setFechaHasta] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
+  useEffect(() => {
+    const q = query(
+      collection(db, 'auditoria'), 
+      where('institucionId', '==', institucion.id)
+    );
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const logData = [];
+      snapshot.forEach(doc => logData.push({ id: doc.id, ...doc.data() }));
+      logData.sort((a, b) => (b.fecha?.toMillis() || 0) - (a.fecha?.toMillis() || 0));
+      setLogs(logData);
+      setLoading(false);
+    }, (error) => {
+      console.error("Error cargando logs:", error);
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, [institucion.id]);
+
+  const logsFiltrados = logs.filter(log => {
+    if (!log.fecha) return true;
+    const logDate = log.fecha.toDate();
+    logDate.setHours(0,0,0,0);
+    
+    if (fechaDesde) {
+      const desde = new Date(fechaDesde + 'T00:00:00');
+      if (logDate < desde) return false;
+    }
+    if (fechaHasta) {
+      const hasta = new Date(fechaHasta + 'T00:00:00');
+      if (logDate > hasta) return false;
+    }
+    return true;
+  });
+
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentLogs = logsFiltrados.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(logsFiltrados.length / itemsPerPage);
+
+  const exportarExcel = () => {
+    try {
+      const dataToExport = logsFiltrados.map(log => ({
+        Fecha: log.fecha?.toDate()?.toLocaleString('es-ES') || 'Reciente',
+        Acción: log.accion,
+        Detalles: log.detalles,
+        Usuario: log.usuario
+      }));
+      const ws = XLSX.utils.json_to_sheet(dataToExport);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Auditoría');
+      XLSX.writeFile(wb, `Auditoria_${institucion.nombre.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.xlsx`);
+    } catch(e) {
+      alert("Error al exportar a excel.");
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white p-6 rounded-lg shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+        <div className="flex justify-between items-center mb-4 pb-4 border-b border-gray-200 shrink-0">
+          <div>
+            <h2 className="text-2xl font-bold text-gray-800 flex items-center">
+              <ClipboardList className="mr-3 text-indigo-600" size={28} />
+              Auditoría de Movimientos
+            </h2>
+            <p className="text-sm text-gray-500 mt-1">Historial de acciones en: <strong>{institucion.nombre}</strong></p>
+          </div>
+          <div className="flex space-x-2">
+            <button onClick={exportarExcel} disabled={logsFiltrados.length === 0} className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 font-bold text-sm transition-colors">
+              <Download size={16} className="mr-2" /> Excel
+            </button>
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-lg">
+              <X size={20} />
+            </button>
+          </div>
+        </div>
+
+        <div className="flex space-x-4 mb-4 shrink-0 bg-gray-50 p-3 rounded-lg border border-gray-200">
+          <div>
+            <label className="text-xs font-bold text-gray-600 uppercase">Desde:</label>
+            <input type="date" value={fechaDesde} onChange={e => {setFechaDesde(e.target.value); setCurrentPage(1);}} className="w-full mt-1 p-2 border rounded text-sm outline-none"/>
+          </div>
+          <div>
+            <label className="text-xs font-bold text-gray-600 uppercase">Hasta:</label>
+            <input type="date" value={fechaHasta} onChange={e => {setFechaHasta(e.target.value); setCurrentPage(1);}} className="w-full mt-1 p-2 border rounded text-sm outline-none"/>
+          </div>
+          <div className="flex items-end pb-1">
+            <button onClick={() => {setFechaDesde(''); setFechaHasta(''); setCurrentPage(1);}} className="text-sm text-blue-600 font-bold hover:underline">Limpiar Filtros</button>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto pr-2 space-y-3">
+          {loading ? (
+            <div className="text-center py-10"><Loader2 className="animate-spin text-indigo-500 mx-auto" size={32} /></div>
+          ) : currentLogs.length === 0 ? (
+            <div className="text-center py-10 text-gray-500 font-medium bg-gray-50 rounded-lg">No se encontraron movimientos registrados.</div>
+          ) : (
+            currentLogs.map(log => (
+              <div key={log.id} className="bg-white p-4 rounded-lg border-l-4 border-indigo-500 shadow-sm flex items-start space-x-4">
+                <div className="flex-1">
+                  <div className="flex justify-between items-start mb-1">
+                    <p className="font-bold text-gray-800 text-sm">{log.accion}</p>
+                    <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded">
+                      {log.fecha?.toDate ? log.fecha.toDate().toLocaleString('es-ES') : 'Reciente'}
+                    </span>
+                  </div>
+                  <p className="text-sm text-gray-600 leading-relaxed">{log.detalles}</p>
+                  <p className="text-xs text-gray-400 mt-2 font-medium">Por: {log.usuario}</p>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {totalPages > 1 && (
+          <div className="mt-4 pt-4 border-t flex justify-between items-center shrink-0">
+            <span className="text-sm text-gray-500 font-medium">Página {currentPage} de {totalPages}</span>
+            <div className="flex space-x-2">
+              <button onClick={() => setCurrentPage(p => Math.max(1, p-1))} disabled={currentPage === 1} className="px-3 py-1 bg-gray-100 rounded hover:bg-gray-200 disabled:opacity-50 text-sm font-bold text-gray-700">Anterior</button>
+              <button onClick={() => setCurrentPage(p => Math.min(totalPages, p+1))} disabled={currentPage === totalPages} className="px-3 py-1 bg-gray-100 rounded hover:bg-gray-200 disabled:opacity-50 text-sm font-bold text-gray-700">Siguiente</button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const Instituciones = () => {
   const [showModal, setShowModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [showComentariosModal, setShowComentariosModal] = useState(false);
   const [showConsumoModal, setShowConsumoModal] = useState(false);
-  const [showHistorialModal, setShowHistorialModal] = useState(false);
   const [showEditConsumoModal, setShowEditConsumoModal] = useState(false);
+  const [showHistorialModal, setShowHistorialModal] = useState(false);
+  const [showAuditoriaModal, setShowAuditoriaModal] = useState(false);
   const [institucionSeleccionada, setInstitucionSeleccionada] = useState(null);
   const [mesSeleccionadoParaEditar, setMesSeleccionadoParaEditar] = useState(null);
+  
   const [searchTerm, setSearchTerm] = useState('');
-
-  // 🆕 ESTADOS PARA PAGINACIÓN
+  const [filtroEstado, setFiltroEstado] = useState('todos'); 
+  const [filtroCategoria, setFiltroCategoria] = useState('todos'); // ✨ NUEVO FILTRO CATEGORIA
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 12;
 
-  // 🆕 RESETEAR PÁGINA A 1 SI EL USUARIO BUSCA ALGO
-  React.useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm]);
+  const [userRol, setUserRol] = useState(null);
+  const [permisos, setPermisos] = useState(null);
 
-  const ContadorComentarios = ({ institucionId }) => {
-    const count = useContadorComentarios(institucionId);
-    return count;
-  };
+  useEffect(() => {
+    const currentUser = auth.currentUser;
+    if (currentUser) {
+      const unsubscribe = onSnapshot(doc(db, 'usuarios', currentUser.uid), (docSnap) => {
+        if (docSnap.exists()) {
+          setUserRol(docSnap.data().rol);
+          setPermisos(docSnap.data().permisos);
+        }
+      });
+      return () => unsubscribe();
+    }
+  }, []);
+
+  const canAdd = userRol === 'admin' || permisos?.instituciones?.agregar;
+  const canEdit = userRol === 'admin' || permisos?.instituciones?.editar;
+  const canDelete = userRol === 'admin' || permisos?.instituciones?.eliminar;
+  const canConsume = userRol === 'admin' || permisos?.instituciones?.registrarConsumo;
+  const canComment = userRol === 'admin' || permisos?.instituciones?.comentar;
+  const canHistory = userRol === 'admin' || permisos?.instituciones?.verHistorial;
 
   const { 
     instituciones, 
@@ -970,37 +1213,31 @@ const Instituciones = ({ userRole }) => {
     eliminarConsumoMensual  
   } = useInstituciones();
 
-  // Función para filtrar instituciones
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filtroEstado, filtroCategoria]);
+
+  // ✨ LOGICA DE FILTROS COMBINADOS (Buscador + Estado + Categoria)
   const institucionesFiltradas = instituciones.filter((institucion) => {
     const searchLower = searchTerm.toLowerCase();
-    const nombreCoincide = institucion.nombre.toLowerCase().includes(searchLower);
-    
-    let estadoTexto = '';
-    const estadoActual = institucion.estado || 'activo'; 
-    
-    switch(estadoActual) {
-      case 'activo':
-        estadoTexto = 'activo';
-        break;
-      case 'pendiente':
-        estadoTexto = 'pendiente';
-        break;
-      case 'vencido':
-        estadoTexto = 'vencido';
-        break;
-      case 'renovacion':
-        estadoTexto = 'renovacion renovación';
-        break;
-      default:
-        estadoTexto = 'activo'; 
+    const coincideBusqueda = institucion.nombre.toLowerCase().includes(searchLower);
+
+    let coincideFiltroEstado = true;
+    if (filtroEstado !== 'todos') {
+      const estadoReal = institucion.estado || 'activo';
+      if (filtroEstado !== estadoReal) coincideFiltroEstado = false;
     }
-    
-    const estadoCoincide = estadoTexto.includes(searchLower);
-    
-    return nombreCoincide || estadoCoincide;
+
+    let coincideFiltroCategoria = true;
+    if (filtroCategoria !== 'todos') {
+      const catReal = institucion.categoria || 'Sin Categoría';
+      if (filtroCategoria === 'Sin Categoría' && catReal !== 'Sin Categoría') coincideFiltroCategoria = false;
+      else if (filtroCategoria !== 'Sin Categoría' && catReal !== filtroCategoria) coincideFiltroCategoria = false;
+    }
+
+    return coincideBusqueda && coincideFiltroEstado && coincideFiltroCategoria;
   });
 
-  // 🆕 LÓGICA DE PAGINACIÓN: Extraer solo los ítems de la página actual
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentItems = institucionesFiltradas.slice(indexOfFirstItem, indexOfLastItem);
@@ -1026,7 +1263,7 @@ const Instituciones = ({ userRole }) => {
 
   const handleEliminarConsumoMensual = async (institucion, mes) => {
     const consumo = institucion.consumoPorMes[mes];
-    const nombreMes = new Date(mes + '-01').toLocaleDateString('es-ES', { year: 'numeric', month: 'long' });
+    const nombreMes = new Date(mes + '-01T00:00:00').toLocaleDateString('es-ES', { year: 'numeric', month: 'long' });
     
     if (window.confirm(
       `¿Estás seguro de que quieres eliminar el consumo de ${nombreMes}?\n\n` +
@@ -1036,7 +1273,6 @@ const Instituciones = ({ userRole }) => {
       `Esta acción no se puede deshacer.`
     )) {
       const resultado = await eliminarConsumoMensual(institucion.id, mes);
-      
       if (resultado.success) {
         alert(`Consumo de ${nombreMes} eliminado exitosamente!\n\nSe han restado ${consumo.toLocaleString()} consultas del total.`);
       } else {
@@ -1048,13 +1284,39 @@ const Instituciones = ({ userRole }) => {
   const handleDelete = async (id, nombre) => {
     if (window.confirm(`¿Estás seguro de que quieres eliminar "${nombre}"?`)) {
       const resultado = await eliminarInstitucion(id);
-      
       if (resultado.success) {
         alert(`Institución "${nombre}" eliminada exitosamente!`);
       } else {
         alert(`Error al eliminar: ${resultado.error}`);
       }
     }
+  };
+
+  // ✨ NUEVA FUNCION: DESCARGAR EXCEL DE LOS FILTROS ACTUALES
+  const exportarExcelFiltrado = () => {
+    if (institucionesFiltradas.length === 0) return alert("No hay datos para exportar con estos filtros.");
+    
+    const data = institucionesFiltradas.map((inst, index) => ({
+      'Nro': index + 1,
+      'Institución': inst.nombre,
+      'Plan / Categoría': inst.categoria || 'Sin Categoría',
+      'Monto Total (Gs)': inst.montoTotal || 0,
+      'Plazo Meses': inst.plazoMeses || 1,
+      'Estado': inst.estado === 'no_renovada' ? 'FINALIZADA' : (inst.estado || 'activo').toUpperCase(),
+      'Asignadas': inst.contrato?.asignadas || 0,
+      'Consumidas': inst.contrato?.consumidas || 0,
+      'Restantes': (inst.contrato?.asignadas || 0) - (inst.contrato?.consumidas || 0),
+      'Uso (%)': inst.contrato?.asignadas > 0 ? `${((inst.contrato.consumidas / inst.contrato.asignadas) * 100).toFixed(1)}%` : '0%',
+      'Fecha Inicio': inst.contrato?.fechaInicio || inst.fechaCreacion,
+      'Fecha Venc.': inst.contrato?.fechaFin || 'N/A',
+      'Meses Contrato': inst.contrato?.duracionMeses || 0
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    ws['!cols'] = [{wch: 5}, {wch: 35}, {wch: 20}, {wch: 15}, {wch: 10}, {wch: 12}, {wch: 12}, {wch: 12}, {wch: 12}, {wch: 10}, {wch: 15}, {wch: 15}, {wch: 10}];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Instituciones');
+    XLSX.writeFile(wb, `Reporte_Instituciones_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
   if (loading && instituciones.length === 0) {
@@ -1087,48 +1349,62 @@ const Instituciones = ({ userRole }) => {
 
   return (
     <div className="p-6 sm:p-10 bg-gray-50 min-h-screen">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 space-y-4 sm:space-y-0">
+      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center mb-8 space-y-4 xl:space-y-0">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 flex items-center">
             <Building size={32} className="mr-3 text-blue-700"/>
             Gestión de Instituciones
           </h1>
-          <p className="text-cyan-600 mt-1">
-            {instituciones.length > 0 
-              ? `${instituciones.length} Instituciones Registradas${searchTerm ? ` - ${institucionesFiltradas.length} Encontradas` : ''}`
-              : 'No hay instituciones registradas'
-            }
+          <p className="text-cyan-700 font-medium mt-1">
+            {institucionesFiltradas.length} resultados encontrados
           </p>
         </div>
-        <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3 w-full sm:w-auto">
-          {/* Buscador */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-            <input
-              type="text"
-              placeholder="Buscar instituciones..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-full sm:w-64"
-            />
-            {searchTerm && (
-              <button
-                onClick={() => setSearchTerm('')}
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-              >
-                <X size={16} />
+        
+        {/* BARRA DE HERRAMIENTAS REESTRUCTURADA */}
+        <div className="flex flex-col md:flex-row items-center space-y-3 md:space-y-0 md:space-x-3 w-full xl:w-auto">
+          
+          <div className="relative w-full md:w-56">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+            <input type="text" placeholder="Buscar institución..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-9 pr-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 shadow-sm text-sm" />
+          </div>
+
+          <div className="relative w-full md:w-44">
+            <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+            <select value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)} className="w-full pl-9 pr-8 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 bg-white text-sm font-medium shadow-sm appearance-none cursor-pointer">
+              <option value="todos">Todos los Estados</option>
+              <option value="activo">Solo Activos</option>
+              <option value="pendiente">Solo Pendientes</option>
+              <option value="vencido">Solo Vencidos</option>
+            </select>
+          </div>
+
+          {/* ✨ NUEVO FILTRO CATEGORÍA */}
+          <div className="relative w-full md:w-56">
+            <Tag className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+            <select value={filtroCategoria} onChange={(e) => setFiltroCategoria(e.target.value)} className="w-full pl-9 pr-8 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 bg-white text-sm font-medium shadow-sm appearance-none cursor-pointer">
+              <option value="todos">Todas las Categorías</option>
+              <option value="BUSINESS Micro">BUSINESS Micro</option>
+              <option value="BUSINESS Pequeña">BUSINESS Pequeña</option>
+              <option value="BUSINESS Mediana">BUSINESS Mediana</option>
+              <option value="Plan Premium">Plan Premium</option>
+              <option value="Plan Premium Gold">Plan Premium Gold</option>
+              <option value="Sin Categoría">Sin Categoría</option>
+            </select>
+          </div>
+          
+          <div className="flex space-x-2 w-full md:w-auto">
+            {/* ✨ BOTON EXCEL FILTRADO */}
+            <button onClick={exportarExcelFiltrado} className="flex-1 md:flex-none bg-emerald-600 text-white px-4 py-2.5 rounded-lg font-bold flex items-center justify-center hover:bg-emerald-700 shadow-sm transition-colors text-sm" title="Descargar Excel del listado filtrado">
+              <FileSpreadsheet size={18} className="md:mr-2"/> <span className="hidden md:inline">Excel</span>
+            </button>
+            
+            {canAdd && (
+              <button onClick={() => setShowModal(true)} className="flex-1 md:flex-none bg-blue-600 text-white px-4 py-2.5 rounded-lg font-bold flex items-center justify-center hover:bg-blue-700 shadow-sm transition-colors whitespace-nowrap text-sm">
+                <PlusCircle size={18} className="md:mr-2"/> <span className="hidden md:inline">Nuevo</span>
               </button>
             )}
           </div>
-          {/* Botón Agregar */}
-          <button 
-            onClick={() => setShowModal(true)}
-            className="bg-green-600 text-white px-5 py-3 rounded-lg font-semibold flex items-center hover:bg-green-700 transition-all shadow-sm whitespace-nowrap"
-            disabled={loading}
-          >
-            <PlusCircle size={20} className="mr-2"/>
-            Agregar Institución
-          </button>
+
         </div>
       </div>
       
@@ -1182,63 +1458,77 @@ const Instituciones = ({ userRole }) => {
 
       <div className="space-y-4">
         {institucionesFiltradas.length === 0 ? (
-          searchTerm ? (
-            <div className="bg-white p-8 rounded-lg shadow-md text-center text-gray-500">
+          searchTerm || filtroEstado !== 'todos' || filtroCategoria !== 'todos' ? (
+            <div className="bg-white p-8 rounded-lg shadow-md text-center text-gray-500 border border-gray-200">
               <Search size={48} className="mx-auto mb-4 text-gray-300" />
               <p className="text-lg font-medium mb-2">No se encontraron resultados</p>
-              <p>No hay instituciones que coincidan con "{searchTerm}".</p>
+              <p>No hay instituciones que coincidan con los filtros aplicados.</p>
               <button
-                onClick={() => setSearchTerm('')}
-                className="mt-4 text-blue-600 hover:text-blue-800 font-medium"
+                onClick={() => {
+                  setSearchTerm('');
+                  setFiltroEstado('todos');
+                  setFiltroCategoria('todos');
+                }}
+                className="mt-4 text-blue-600 hover:text-blue-800 font-medium bg-blue-50 px-4 py-2 rounded-lg"
               >
-                Limpiar búsqueda
+                Limpiar filtros
               </button>
             </div>
           ) : (
-            <div className="bg-white p-8 rounded-lg shadow-md text-center text-gray-500">
+            <div className="bg-white p-8 rounded-lg shadow-md text-center text-gray-500 border border-gray-200">
               <Building size={48} className="mx-auto mb-4 text-gray-300" />
               <p className="text-lg font-medium mb-2">No hay instituciones registradas</p>
-              <p>Haz clic en "Agregar Institución" para comenzar.</p>
+              <p>Haz clic en "Nuevo" para comenzar.</p>
             </div>
           )
         ) : (
-          /* 🆕 ACA MAPEA SOLO LAS INSTITUCIONES DE LA PÁGINA ACTUAL (currentItems) */
           currentItems.map((institucion) => {
-          let estadoBadge = 'bg-green-100 text-green-800';
+          let estadoBadge = 'bg-green-100 text-green-800 border border-green-200';
           let estadoTexto = 'Activo';
 
           switch(institucion.estado) {
             case 'pendiente':
-              estadoBadge = 'bg-yellow-100 text-yellow-800';
+              estadoBadge = 'bg-yellow-100 text-yellow-800 border border-yellow-200';
               estadoTexto = 'Pendiente';
               break;
             case 'vencido':
-              estadoBadge = 'bg-red-100 text-red-800';
+              estadoBadge = 'bg-red-100 text-red-800 border border-red-200';
               estadoTexto = 'Vencido - No Renovado';
               break;
             case 'renovacion':
-              estadoBadge = 'bg-blue-100 text-blue-800';
+              estadoBadge = 'bg-blue-100 text-blue-800 border border-blue-200';
               estadoTexto = 'En Renovación';
               break;
             default:
-              estadoBadge = 'bg-green-100 text-green-800';
+              estadoBadge = 'bg-green-100 text-green-800 border border-green-200';
               estadoTexto = 'Activo';
           }
 
+          // ✨ COLOR DEL BADGE DE CATEGORÍA
+          let catColor = 'bg-slate-100 text-slate-700 border-slate-200';
+          if(institucion.categoria?.includes('BUSINESS')) catColor = 'bg-indigo-100 text-indigo-800 border-indigo-200';
+          if(institucion.categoria?.includes('Premium')) catColor = 'bg-amber-100 text-amber-800 border-amber-200';
+
             return (
-              <div key={institucion.id} className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4">
+              <div key={institucion.id} className="bg-white p-6 rounded-lg shadow-md border border-gray-200 hover:border-blue-300 transition-colors">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4">
                   <div>
-                    <div className="flex items-center space-x-3 mb-2">
-                      <h2 className="text-xl font-semibold text-gray-800">{institucion.nombre}</h2>
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${estadoBadge}`}>
+                    <div className="flex items-center flex-wrap gap-2 mb-2">
+                      <h2 className="text-xl font-bold text-gray-900">{institucion.nombre}</h2>
+                      
+                      {/* ✨ BADGE CATEGORÍA EN LA TARJETA */}
+                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border shadow-sm ${catColor}`}>
+                        {institucion.categoria || 'Sin Categoría'}
+                      </span>
+
+                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${estadoBadge}`}>
                         {estadoTexto}
                       </span>
                     </div>
-                    <p className="text-sm text-gray-500">
-                      Inicio: {institucion.contrato?.fechaInicio || institucion.fechaCreacion} | 
-                      Vence: {institucion.contrato?.fechaFin} |
-                      Duración: {institucion.contrato?.duracionMeses} meses
+                    <p className="text-sm text-gray-500 font-medium">
+                      Inicio: <span className="text-gray-700">{institucion.contrato?.fechaInicio || institucion.fechaCreacion}</span> | 
+                      Vence: <span className="text-gray-700">{institucion.contrato?.fechaFin}</span> |
+                      Plazo Pago: <span className="text-gray-700">{institucion.plazoMeses || 1} meses</span>
                     </p>
                     {institucion.historial && institucion.historial.length > 0 && (
                       <p className="text-xs text-blue-600 mt-1">
@@ -1246,79 +1536,104 @@ const Instituciones = ({ userRole }) => {
                       </p>
                     )}
                   </div>
-                  <div className="flex space-x-2 mt-2 sm:mt-0">
-                    <button 
-                      onClick={() => {
-                        setInstitucionSeleccionada(institucion);
-                        setShowConsumoModal(true);
-                      }}
-                      className="bg-green-600 text-white p-3 rounded-lg hover:bg-green-700 transition-colors"
-                      title="Registrar consumo mensual"
-                      disabled={loading}
-                    >
-                      <Plus size={18} />
-                    </button>
-                    {/* 🆕 NUEVO BOTÓN DE COMENTARIOS */}
-                    <BotonComentarios 
-                      institucion={institucion}
-                      comentariosCount={0}
-                    />
-                    <button 
-                      onClick={() => {
-                        setInstitucionSeleccionada(institucion);
-                        setShowEditModal(true);
-                      }}
-                      className="bg-blue-600 text-white p-3 rounded-lg hover:bg-blue-700 transition-colors"
-                      title="Editar institución"
-                      disabled={loading}
-                    >
-                      <Edit3 size={18} />
-                    </button>
-                    <button 
-                      onClick={() => {
-                        setInstitucionSeleccionada(institucion);
-                        setShowHistorialModal(true);
-                      }}
-                      className="bg-purple-600 text-white p-3 rounded-lg hover:bg-purple-700 transition-colors"
-                      title="Ver historial de períodos"
-                      disabled={loading}
-                    >
-                      <History size={18} />
-                    </button>
-                    <button 
-                      onClick={() => handleDelete(institucion.id, institucion.nombre)}
-                      className="bg-red-600 text-white p-3 rounded-lg hover:bg-red-700 transition-colors"
-                      title="Eliminar institución"
-                      disabled={loading}
-                    >
-                      <Trash2 size={18} />
-                    </button>
+                  
+                  <div className="flex flex-wrap gap-2 mt-3 md:mt-0">
+                    
+                    {canConsume && (
+                      <button 
+                        onClick={() => {
+                          setInstitucionSeleccionada(institucion);
+                          setShowConsumoModal(true);
+                        }}
+                        className="bg-green-50 text-green-700 hover:bg-green-600 hover:text-white p-2.5 rounded-lg border border-green-200 hover:border-green-600 transition-all shadow-sm"
+                        title="Registrar consumo mensual"
+                        disabled={loading}
+                      >
+                        <Plus size={18} />
+                      </button>
+                    )}
+                    
+                    {canComment && (
+                      <BotonComentarios 
+                        institucion={institucion}
+                        comentariosCount={0}
+                      />
+                    )}
+
+                    {canEdit && (
+                      <button 
+                        onClick={() => {
+                          setInstitucionSeleccionada(institucion);
+                          setShowEditModal(true);
+                        }}
+                        className="bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white p-2.5 rounded-lg border border-blue-200 hover:border-blue-600 transition-all shadow-sm"
+                        title="Editar institución"
+                        disabled={loading}
+                      >
+                        <Edit3 size={18} />
+                      </button>
+                    )}
+
+                    {canHistory && (
+                      <button 
+                        onClick={() => {
+                          setInstitucionSeleccionada(institucion);
+                          setShowHistorialModal(true);
+                        }}
+                        className="bg-purple-50 text-purple-700 hover:bg-purple-600 hover:text-white p-2.5 rounded-lg border border-purple-200 hover:border-purple-600 transition-all shadow-sm"
+                        title="Ver historial de períodos"
+                        disabled={loading}
+                      >
+                        <History size={18} />
+                      </button>
+                    )}
+
+                    {(userRol === 'admin' || userRol === 'contabilidad') && (
+                      <button 
+                        onClick={() => { setInstitucionSeleccionada(institucion); setShowAuditoriaModal(true); }}
+                        className="bg-slate-50 text-slate-700 hover:bg-slate-700 hover:text-white p-2.5 rounded-lg border border-slate-200 hover:border-slate-700 transition-all shadow-sm" 
+                        title="Ver Auditoría de Cambios"
+                        disabled={loading}
+                      >
+                        <ClipboardList size={18} />
+                      </button>
+                    )}
+
+                    {canDelete && (
+                      <button 
+                        onClick={() => handleDelete(institucion.id, institucion.nombre)}
+                        className="bg-red-50 text-red-700 hover:bg-red-600 hover:text-white p-2.5 rounded-lg border border-red-200 hover:border-red-600 transition-all shadow-sm"
+                        title="Eliminar institución"
+                        disabled={loading}
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    )}
+
                   </div>
                 </div>
 
-                {/* Títulos en negrita y color oscurecido (Pedido tuyo) */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center bg-slate-50 p-4 rounded-xl border border-slate-100">
                   <div>
-                    <p className="text-sm font-bold text-gray-700">Consultas Asignadas</p>
-                    <p className="text-2xl font-bold text-blue-600">
+                    <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Consultas Asignadas</p>
+                    <p className="text-2xl font-black text-blue-600">
                       {(institucion.contrato?.asignadas || 0).toLocaleString()}
                     </p>
                   </div>
-                  <div>
-                    <p className="text-sm font-bold text-gray-700">Consultas Consumidas</p>
-                    <p className="text-2xl font-bold text-gray-800">
+                  <div className="border-t sm:border-t-0 sm:border-l border-slate-200 pt-3 sm:pt-0">
+                    <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Consumidas</p>
+                    <p className="text-2xl font-black text-gray-800">
                       {(institucion.contrato?.consumidas || 0).toLocaleString()}
                     </p>
                   </div>
-                  <div>
-                    <p className="text-sm font-bold text-gray-700">Consultas Restantes</p>
-                    <p className="text-2xl font-bold text-green-600">
+                  <div className="border-t sm:border-t-0 sm:border-l border-slate-200 pt-3 sm:pt-0">
+                    <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Restantes</p>
+                    <p className="text-2xl font-black text-emerald-600">
                       {((institucion.contrato?.asignadas || 0) - (institucion.contrato?.consumidas || 0)).toLocaleString()}
                     </p>
                   </div>
                 </div>
 
-                {/* --- SECCIÓN REDISEÑADA (Los cuadrados naranjas con números grandes) --- */}
                 {institucion.consumoPorMes && Object.keys(institucion.consumoPorMes).length > 0 && (
                   <div className="mt-6 pt-4 border-t border-gray-200">
                     <h4 className="text-lg font-bold text-slate-800 mb-4 flex items-center">
@@ -1334,10 +1649,9 @@ const Instituciones = ({ userRole }) => {
                           className="bg-gradient-to-br from-white to-orange-50 p-4 rounded-xl border-2 border-orange-100 shadow-sm text-center relative group hover:border-orange-300 transition-all duration-200"
                         >
                           <div className="text-xs font-bold text-orange-800 mb-1 uppercase tracking-widest opacity-80">
-                            {new Date(mes + '-01').toLocaleDateString('es-ES', { year: 'numeric', month: 'short' })}
+                            {new Date(mes + '-01T00:00:00').toLocaleDateString('es-ES', { year: 'numeric', month: 'short' })}
                           </div>
                           
-                          {/* TIPOGRAFÍA GIGANTE Y NEGRITA */}
                           <div className="text-3xl md:text-4xl font-black text-orange-600 drop-shadow-sm leading-none my-2">
                             {consumo.toLocaleString()}
                           </div>
@@ -1346,146 +1660,61 @@ const Instituciones = ({ userRole }) => {
                             Consultas
                           </div>
 
-                          {/* BOTONES DE EDICIÓN FLOTANTES */}
-                          <div className="absolute top-2 right-2 flex space-x-1 opacity-0 group-hover:opacity-100 transition-all duration-200">
-                            <button
-                              onClick={() => {
-                                setInstitucionSeleccionada(institucion);
-                                setMesSeleccionadoParaEditar(mes);
-                                setShowEditConsumoModal(true);
-                              }}
-                              className="bg-blue-100 text-blue-600 hover:text-blue-800 hover:bg-blue-200 p-1.5 rounded-md shadow-sm transition-all duration-200"
-                              title="Editar consumo del mes"
-                              disabled={loading}
-                            >
-                              <Edit3 size={14} />
-                            </button>
-                            <button
-                              onClick={() => handleEliminarConsumoMensual(institucion, mes)}
-                              className="bg-red-100 text-red-600 hover:text-red-800 hover:bg-red-200 p-1.5 rounded-md shadow-sm transition-all duration-200"
-                              title="Eliminar consumo del mes"
-                              disabled={loading}
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          </div>
+                          {(canEdit || canDelete) && (
+                            <div className="absolute top-2 right-2 flex space-x-1 opacity-0 group-hover:opacity-100 transition-all duration-200">
+                              {canEdit && (
+                                <button
+                                  onClick={() => {
+                                    setInstitucionSeleccionada(institucion);
+                                    setMesSeleccionadoParaEditar(mes);
+                                    setShowEditConsumoModal(true);
+                                  }}
+                                  className="bg-blue-100 text-blue-600 hover:text-blue-800 hover:bg-blue-200 p-1.5 rounded-md shadow-sm transition-all duration-200"
+                                  title="Editar consumo del mes"
+                                  disabled={loading}
+                                >
+                                  <Edit3 size={14} />
+                                </button>
+                              )}
+                              {canDelete && (
+                                <button
+                                  onClick={() => handleEliminarConsumoMensual(institucion, mes)}
+                                  className="bg-red-100 text-red-600 hover:text-red-800 hover:bg-red-200 p-1.5 rounded-md shadow-sm transition-all duration-200"
+                                  title="Eliminar consumo del mes"
+                                  disabled={loading}
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              )}
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
                   </div>
                 )}
-                {/* --------------------------- */}
               </div>
             );
           })
         )}
         
-        {/* 🆕 COMPONENTE UI DE PAGINACIÓN */}
         {totalPages > 1 && (
-          <div className="mt-8 pt-6 border-t border-gray-200 flex flex-col sm:flex-row justify-between items-center space-y-4 sm:space-y-0">
-            <div className="text-sm text-gray-500 font-medium">
-              Mostrando {indexOfFirstItem + 1} a {Math.min(indexOfLastItem, institucionesFiltradas.length)} de {institucionesFiltradas.length} instituciones
-            </div>
-            
-            <div className="flex items-center space-x-2">
-              <button
-                onClick={() => paginate(currentPage - 1)}
-                disabled={currentPage === 1}
-                className="px-4 py-2 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium text-sm"
-              >
-                Anterior
-              </button>
-              
-              <div className="hidden sm:flex space-x-1">
-                {[...Array(totalPages)].map((_, i) => (
-                  <button
-                    key={i}
-                    onClick={() => paginate(i + 1)}
-                    className={`w-10 h-10 rounded-lg font-bold transition-colors text-sm ${
-                      currentPage === i + 1 
-                        ? 'bg-blue-600 text-white shadow-md border border-blue-600' 
-                        : 'bg-white border border-gray-300 text-gray-600 hover:bg-gray-50'
-                    }`}
-                  >
-                    {i + 1}
-                  </button>
-                ))}
-              </div>
-
-              <button
-                onClick={() => paginate(currentPage + 1)}
-                disabled={currentPage === totalPages}
-                className="px-4 py-2 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium text-sm"
-              >
-                Siguiente
-              </button>
+          <div className="mt-8 pt-4 flex justify-between items-center border-t border-gray-200">
+            <span className="text-sm font-medium text-gray-500 mt-4">Mostrando pág {currentPage} de {totalPages}</span>
+            <div className="space-x-2 mt-4">
+              <button onClick={() => setCurrentPage(p => p - 1)} disabled={currentPage === 1} className="px-4 py-2 border rounded-lg hover:bg-gray-100 disabled:opacity-50 text-sm font-bold text-gray-700 transition-colors">Anterior</button>
+              <button onClick={() => setCurrentPage(p => p + 1)} disabled={currentPage === totalPages} className="px-4 py-2 border rounded-lg hover:bg-gray-100 disabled:opacity-50 text-sm font-bold text-gray-700 transition-colors">Siguiente</button>
             </div>
           </div>
         )}
-        {/* ------------------------------- */}
       </div>
 
-      {showModal && (
-        <ModalAgregarInstitucion 
-          onClose={() => setShowModal(false)} 
-          onSave={handleSave} 
-        />
-      )}
-
-      {showEditModal && institucionSeleccionada && (
-        <ModalEditarInstitucion 
-          institucion={institucionSeleccionada}
-          onClose={() => {
-            setShowEditModal(false);
-            setInstitucionSeleccionada(null);
-          }} 
-          onSave={handleEdit} 
-        />
-      )}
-
-      {showConsumoModal && institucionSeleccionada && (
-        <ModalConsumoMensual 
-          institucion={institucionSeleccionada}
-          onClose={() => {
-            setShowConsumoModal(false);
-            setInstitucionSeleccionada(null);
-          }} 
-          onSave={handleConsumoMensual} 
-        />
-      )}
-
-      {showEditConsumoModal && institucionSeleccionada && mesSeleccionadoParaEditar && (
-        <ModalEditarConsumoMes 
-          institucion={institucionSeleccionada}
-          mesSeleccionado={mesSeleccionadoParaEditar}
-          onClose={() => {
-            setShowEditConsumoModal(false);
-            setInstitucionSeleccionada(null);
-            setMesSeleccionadoParaEditar(null);
-          }} 
-          onSave={handleEditarConsumoMensual} 
-        />
-      )}
-
-      {showComentariosModal && institucionSeleccionada && (
-        <ModalComentarios 
-          institucion={institucionSeleccionada}
-          onClose={() => {
-            setShowComentariosModal(false);
-            setInstitucionSeleccionada(null);
-          }} 
-        />
-      )}
-
-      {showHistorialModal && institucionSeleccionada && (
-        <ModalHistorial 
-          institucion={institucionSeleccionada}
-          onClose={() => {
-            setShowHistorialModal(false);
-            setInstitucionSeleccionada(null);
-          }} 
-        />
-      )}
+      {showModal && <ModalAgregarInstitucion onClose={() => setShowModal(false)} onSave={handleSave} />}
+      {showEditModal && institucionSeleccionada && <ModalEditarInstitucion institucion={institucionSeleccionada} onClose={() => { setShowEditModal(false); setInstitucionSeleccionada(null); }} onSave={handleEdit} />}
+      {showConsumoModal && institucionSeleccionada && <ModalConsumoMensual institucion={institucionSeleccionada} onClose={() => { setShowConsumoModal(false); setInstitucionSeleccionada(null); }} onSave={handleConsumoMensual} />}
+      {showEditConsumoModal && institucionSeleccionada && mesSeleccionadoParaEditar && <ModalEditarConsumoMes institucion={institucionSeleccionada} mesSeleccionado={mesSeleccionadoParaEditar} onClose={() => { setShowEditConsumoModal(false); setInstitucionSeleccionada(null); setMesSeleccionadoParaEditar(null); }} onSave={handleEditarConsumoMensual} />}
+      {showHistorialModal && institucionSeleccionada && <ModalHistorial institucion={institucionSeleccionada} onClose={() => { setShowHistorialModal(false); setInstitucionSeleccionada(null); }} />}
+      {showAuditoriaModal && institucionSeleccionada && <ModalAuditoria institucion={institucionSeleccionada} onClose={() => { setShowAuditoriaModal(false); setInstitucionSeleccionada(null); }} />}
     </div>
   );
 };

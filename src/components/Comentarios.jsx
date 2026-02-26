@@ -131,23 +131,24 @@ const ModalComentarios = ({ institucion, onClose }) => {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden">
+      {/* Añadimos flex y flex-col al contenedor principal para que los hijos respeten el max-h */}
+      <div className="bg-white rounded-lg shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
         
-        {/* Header */}
-        <div className="bg-blue-600 text-white p-6">
+        {/* Header - Aplicamos el degradado Naranja/Ámbar */}
+        <div className="bg-gradient-to-r from-orange-600 to-amber-500 text-white p-6 shrink-0">
           <div className="flex justify-between items-center">
             <div>
-              <h2 className="text-2xl font-bold flex items-center">
+              <h2 className="text-2xl font-bold flex items-center drop-shadow-sm">
                 <MessageCircle className="mr-3" size={28} />
                 Comentarios - {institucion.nombre}
               </h2>
-              <p className="text-blue-100 text-sm mt-1">
+              <p className="text-orange-100 text-sm mt-1 font-medium">
                 Espacio para notas, observaciones y comunicación del equipo
               </p>
             </div>
             <button 
               onClick={onClose} 
-              className="text-blue-100 hover:text-white transition-colors"
+              className="text-orange-100 hover:text-white transition-colors p-1"
               disabled={saving}
             >
               <X size={24} />
@@ -155,14 +156,14 @@ const ModalComentarios = ({ institucion, onClose }) => {
           </div>
         </div>
 
-        {/* Contenido */}
-        <div className="flex flex-col h-[600px]">
+        {/* Contenido - Quitamos el h-[600px] fijo y usamos flex-1 overflow-hidden */}
+        <div className="flex flex-col flex-1 overflow-hidden">
           
-          {/* Lista de comentarios */}
+          {/* Lista de comentarios - Esta parte es la que hace el scroll (overflow-y-auto) */}
           <div className="flex-1 overflow-y-auto p-6 space-y-4">
             {loading && comentarios.length === 0 ? (
               <div className="text-center py-8">
-                <Loader2 size={32} className="animate-spin text-blue-600 mx-auto mb-2" />
+                <Loader2 size={32} className="animate-spin text-orange-500 mx-auto mb-2" />
                 <p className="text-gray-600">Cargando comentarios...</p>
               </div>
             ) : error ? (
@@ -178,16 +179,16 @@ const ModalComentarios = ({ institucion, onClose }) => {
               </div>
             ) : (
               comentarios.map((comentario) => (
-                <div key={comentario.id} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                <div key={comentario.id} className="bg-gray-50 rounded-lg p-4 border border-gray-200 shadow-sm">
                   
                   {/* Header del comentario */}
                   <div className="flex justify-between items-start mb-3">
                     <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center">
+                      <div className="w-10 h-10 bg-orange-500 rounded-full flex items-center justify-center shadow-inner">
                         <User size={20} className="text-white" />
                       </div>
                       <div>
-                        <div className="font-medium text-gray-800">{comentario.autorNombre}</div>
+                        <div className="font-bold text-gray-800">{comentario.autorNombre}</div>
                         <div className="text-sm text-gray-500">{comentario.autorEmail}</div>
                       </div>
                     </div>
@@ -199,7 +200,7 @@ const ModalComentarios = ({ institucion, onClose }) => {
                           <div className="flex space-x-1">
                             <button
                               onClick={() => handleEditarComentario(comentario.id)}
-                              className="text-green-600 hover:text-green-800 p-1 rounded transition-colors"
+                              className="text-green-600 hover:text-green-800 hover:bg-green-50 p-1.5 rounded transition-colors"
                               title="Guardar cambios"
                               disabled={saving}
                             >
@@ -207,7 +208,7 @@ const ModalComentarios = ({ institucion, onClose }) => {
                             </button>
                             <button
                               onClick={cancelarEdicion}
-                              className="text-gray-600 hover:text-gray-800 p-1 rounded transition-colors"
+                              className="text-gray-500 hover:text-gray-700 hover:bg-gray-100 p-1.5 rounded transition-colors"
                               title="Cancelar edición"
                               disabled={saving}
                             >
@@ -218,7 +219,7 @@ const ModalComentarios = ({ institucion, onClose }) => {
                           <div className="flex space-x-1">
                             <button
                               onClick={() => iniciarEdicion(comentario)}
-                              className="text-blue-600 hover:text-blue-800 p-1 rounded transition-colors"
+                              className="text-orange-500 hover:text-orange-700 hover:bg-orange-50 p-1.5 rounded transition-colors"
                               title="Editar comentario"
                               disabled={saving}
                             >
@@ -226,7 +227,7 @@ const ModalComentarios = ({ institucion, onClose }) => {
                             </button>
                             <button
                               onClick={() => handleEliminarComentario(comentario.id, comentario.autorNombre)}
-                              className="text-red-600 hover:text-red-800 p-1 rounded transition-colors"
+                              className="text-red-500 hover:text-red-700 hover:bg-red-50 p-1.5 rounded transition-colors"
                               title="Eliminar comentario"
                               disabled={saving}
                             >
@@ -244,27 +245,27 @@ const ModalComentarios = ({ institucion, onClose }) => {
                       <textarea
                         value={textoEditando}
                         onChange={(e) => setTextoEditando(e.target.value)}
-                        className="w-full p-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        className="w-full p-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
                         rows="3"
                         placeholder="Edita tu comentario..."
                         disabled={saving}
                       />
                     ) : (
-                      <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">
+                      <p className="text-gray-700 leading-relaxed whitespace-pre-wrap pl-13">
                         {comentario.texto}
                       </p>
                     )}
                   </div>
 
                   {/* Footer del comentario */}
-                  <div className="flex items-center justify-between text-xs text-gray-500 pt-2 border-t border-gray-200">
-                    <div className="flex items-center">
-                      <Clock size={12} className="mr-1" />
+                  <div className="flex items-center justify-between text-xs text-gray-500 pt-3 border-t border-gray-200 mt-2">
+                    <div className="flex items-center font-medium">
+                      <Clock size={12} className="mr-1.5 text-orange-400" />
                       <span>Publicado: {formatearFecha(comentario.fechaCreacion)}</span>
                     </div>
                     {comentario.fechaModificacion && (
-                      <div className="flex items-center">
-                        <Edit3 size={12} className="mr-1" />
+                      <div className="flex items-center font-medium">
+                        <Edit3 size={12} className="mr-1.5 text-orange-400" />
                         <span>Editado: {formatearFecha(comentario.fechaModificacion)}</span>
                       </div>
                     )}
@@ -274,15 +275,15 @@ const ModalComentarios = ({ institucion, onClose }) => {
             )}
           </div>
 
-          {/* Área para nuevo comentario */}
-            <div className="border-t border-gray-200 p-6 bg-gray-50">
+          {/* Área para nuevo comentario - Aplicamos shrink-0 para que nunca se oculte ni achique */}
+            <div className="border-t border-gray-200 p-6 bg-gray-50 shrink-0">
             <div className="flex items-start space-x-4">
-                <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
+                <div className="w-10 h-10 bg-orange-500 rounded-full flex items-center justify-center flex-shrink-0 shadow-inner">
                 <User size={20} className="text-white" />
                 </div>
                 <div className="flex-1">
                 <div className="text-sm text-gray-600 mb-2">
-                    Comentando como: <span className="font-medium">{currentUser?.displayName || currentUser?.email}</span>
+                    Comentando como: <span className="font-bold text-orange-700">{currentUser?.displayName || currentUser?.email}</span>
                 </div>
                 <textarea
                     value={nuevoComentario}
@@ -293,20 +294,20 @@ const ModalComentarios = ({ institucion, onClose }) => {
                         handleAgregarComentario();
                     }
                     }}
-                    className="w-full p-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full p-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-shadow"
                     rows="3"
                     placeholder="Escribe tu comentario... (Enter para enviar, Shift+Enter para nueva línea)"
                     disabled={saving}
                     maxLength="500"
                 />
                 <div className="flex justify-between items-center mt-3">
-                    <div className="text-xs text-gray-500">
+                    <div className="text-xs font-medium text-gray-500">
                     {nuevoComentario.length}/500 caracteres
                     </div>
                     <button
                     onClick={handleAgregarComentario}
                     disabled={saving || !nuevoComentario.trim() || nuevoComentario.length > 500}
-                    className="bg-blue-600 text-white px-6 py-2 rounded-lg font-medium flex items-center hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="bg-orange-600 text-white px-6 py-2 rounded-lg font-bold flex items-center hover:bg-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
                     >
                     {saving ? (
                         <>
@@ -338,12 +339,12 @@ export const BotonComentarios = ({ institucion, comentariosCount = 0 }) => {
     <>
       <button 
         onClick={() => setShowModal(true)}
-        className="bg-yellow-400 text-white p-3 rounded-lg hover:bg-yellow-600 transition-colors relative"
+        className="bg-orange-500 text-white p-3 rounded-lg hover:bg-orange-600 transition-colors relative shadow-sm"
         title="Ver y agregar comentarios"
       >
         <MessageCircle size={18} />
         {comentariosCount > 0 && (
-          <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+          <span className="absolute -top-2 -right-2 bg-red-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center border-2 border-white">
             {comentariosCount > 9 ? '9+' : comentariosCount}
           </span>
         )}
