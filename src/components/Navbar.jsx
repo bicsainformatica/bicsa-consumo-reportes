@@ -5,6 +5,7 @@ import { LogOut, LayoutDashboard, Building2, ShieldCheck, User, Shield, Calculat
 import WeatherWidget from './WeatherWidget'; 
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db, auth } from '../firebase';
+import { onAuthStateChanged } from 'firebase/auth'; // ✨ NUEVO
 import { motion, AnimatePresence } from 'framer-motion';
 
 const Navbar = ({ userName, userRole, onLogout }) => {
@@ -16,12 +17,27 @@ const Navbar = ({ userName, userRole, onLogout }) => {
   const [permisos, setPermisos] = useState(null);
 
   useEffect(() => {
-    if(auth.currentUser) {
-      const unsub = onSnapshot(doc(db, 'usuarios', auth.currentUser.uid), docSnap => {
-        if(docSnap.exists()) setPermisos(docSnap.data().permisos);
-      });
-      return () => unsub();
-    }
+    let unsubscribeDoc = null;
+    
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+      if (unsubscribeDoc) {
+        unsubscribeDoc();
+        unsubscribeDoc = null;
+      }
+      
+      if (user) {
+        unsubscribeDoc = onSnapshot(doc(db, 'usuarios', user.uid), docSnap => {
+          if (docSnap.exists()) setPermisos(docSnap.data().permisos);
+        });
+      } else {
+        setPermisos(null);
+      }
+    });
+
+    return () => {
+      unsubscribeAuth();
+      if (unsubscribeDoc) unsubscribeDoc();
+    };
   }, []);
 
   const handleNavigation = (path) => {

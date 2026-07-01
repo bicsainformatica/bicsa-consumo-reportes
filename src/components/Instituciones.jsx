@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { useInstituciones } from '../hooks/useFirebase';
 import { auth, db } from '../firebase';
+import { onAuthStateChanged } from 'firebase/auth'; // ✨ NUEVO
 import { doc, onSnapshot, collection, query, where, orderBy } from 'firebase/firestore';
 import { BotonComentarios } from './Comentarios';
 import { sileo } from './sileo';
@@ -1216,16 +1217,31 @@ const Instituciones = () => {
   const [permisos, setPermisos] = useState(null);
 
   useEffect(() => {
-    const currentUser = auth.currentUser;
-    if (currentUser) {
-      const unsubscribe = onSnapshot(doc(db, 'usuarios', currentUser.uid), (docSnap) => {
-        if (docSnap.exists()) {
-          setUserRol(docSnap.data().rol);
-          setPermisos(docSnap.data().permisos);
-        }
-      });
-      return () => unsubscribe();
-    }
+    let unsubscribeDoc = null;
+    
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+      if (unsubscribeDoc) {
+        unsubscribeDoc();
+        unsubscribeDoc = null;
+      }
+      
+      if (user) {
+        unsubscribeDoc = onSnapshot(doc(db, 'usuarios', user.uid), (docSnap) => {
+          if (docSnap.exists()) {
+            setUserRol(docSnap.data().rol);
+            setPermisos(docSnap.data().permisos);
+          }
+        });
+      } else {
+        setUserRol(null);
+        setPermisos(null);
+      }
+    });
+
+    return () => {
+      unsubscribeAuth();
+      if (unsubscribeDoc) unsubscribeDoc();
+    };
   }, []);
 
   const canAdd = userRol === 'admin' || permisos?.instituciones?.agregar;
