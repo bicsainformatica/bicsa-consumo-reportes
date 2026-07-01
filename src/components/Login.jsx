@@ -1,4 +1,4 @@
-// src/components/Login.jsx - DISEÑO PREMIUM LIGHT CON GLASSMORPHISM
+// src/components/Login.jsx - DISEÑO PREMIUM LIGHT CON TECNOLOGÍA FLUIDA
 import React, { useState } from 'react';
 import { LogIn, Shield, AlertCircle, Loader2, Mail, Instagram, Facebook, Linkedin } from 'lucide-react';
 import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
@@ -98,27 +98,107 @@ const Login = ({ onLogin }) => {
   };
   // ----------------------
 
+  // Estilos CSS locales de tecnología y efectos
+  const styleTag = (
+    <style>{`
+      @keyframes tech-border-flow {
+        0% { background-position: 0% 0%; }
+        100% { background-position: 200% 0%; }
+      }
+      @keyframes tech-float-slow {
+        0%, 100% { transform: translate(0px, 0px) scale(1); }
+        50% { transform: translate(35px, -35px) scale(1.1); }
+      }
+      @keyframes tech-float-medium {
+        0%, 100% { transform: translate(0px, 0px) scale(1); }
+        50% { transform: translate(-25px, 45px) scale(0.9); }
+      }
+      @keyframes tech-float-fast {
+        0%, 100% { transform: translate(0px, 0px) scale(1); }
+        50% { transform: translate(20px, 20px) scale(1.05); }
+      }
+      .tech-card {
+        position: relative;
+        background: rgba(255, 255, 255, 0.78);
+        backdrop-filter: blur(20px);
+        border: 1px solid rgba(255, 255, 255, 0.8);
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.06), 0 0 40px 0 rgba(255, 81, 5, 0.04);
+        overflow: hidden;
+      }
+      .tech-card::before {
+        content: '';
+        position: absolute;
+        top: 0; left: 0; right: 0; height: 4px;
+        background: linear-gradient(90deg, #ff5105, #e0a82e, #a855f7, #ff5105);
+        background-size: 200% auto;
+        animation: tech-border-flow 4s linear infinite;
+        z-index: 10;
+      }
+      .tech-glow-spot-1 {
+        animation: tech-float-slow 16s ease-in-out infinite;
+      }
+      .tech-glow-spot-2 {
+        animation: tech-float-medium 20s ease-in-out infinite;
+      }
+      .tech-glow-spot-3 {
+        animation: tech-float-fast 12s ease-in-out infinite;
+      }
+      .tech-input {
+        transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      }
+      .tech-input:focus {
+        border-color: #ff5105;
+        box-shadow: 0 0 0 4px rgba(255, 81, 5, 0.08);
+        background-color: #fff;
+      }
+    `}</style>
+  );
+
+  // Variantes para animación de entrada escalonada (Stagger)
+  const containerVariants = {
+    hidden: { opacity: 0, scale: 0.96, y: 15 },
+    visible: { 
+      opacity: 1, 
+      scale: 1,
+      y: 0,
+      transition: { 
+        duration: 0.6, 
+        ease: [0.16, 1, 0.3, 1],
+        staggerChildren: 0.06
+      } 
+    }
+  };
+
+  const itemVariants = {
+    hidden: { opacity: 0, y: 8 },
+    visible: { 
+      opacity: 1, 
+      y: 0, 
+      transition: { duration: 0.4, ease: [0.16, 1, 0.3, 1] } 
+    }
+  };
+
   // Componente de Redes Sociales (Reutilizable)
   const SocialLinks = () => (
-    <div className="mt-8 pt-6 border-t border-slate-100 text-center">
+    <motion.div variants={itemVariants} className="mt-8 pt-6 border-t border-slate-100 text-center">
       <p className="text-sm font-semibold text-slate-500 mb-4">
         Seguinos en nuestras redes
       </p>
       <div className="flex justify-center space-x-6">
-        <a href="https://www.instagram.com/bicsapy/?hl=es" target="_blank" rel="noreferrer" className="text-slate-400 hover:text-brand-500 transition-all hover:scale-110 transform duration-300">
+        <a href="https://www.instagram.com/bicsapy/?hl=es" target="_blank" rel="noreferrer" className="text-slate-450 hover:text-[#ff5105] transition-all hover:scale-110 transform duration-200">
           <Instagram className="w-5 h-5" />
           <span className="sr-only">Instagram</span>
         </a>
-        <a href="https://www.facebook.com/bicsapy/?locale=es_LA" target="_blank" rel="noreferrer" className="text-slate-400 hover:text-brand-500 transition-all hover:scale-110 transform duration-300">
+        <a href="https://www.facebook.com/bicsapy/?locale=es_LA" target="_blank" rel="noreferrer" className="text-slate-450 hover:text-[#ff5105] transition-all hover:scale-110 transform duration-200">
           <Facebook className="w-5 h-5" />
           <span className="sr-only">Facebook</span>
         </a>
-        <a href="https://py.linkedin.com/company/bicsapy" target="_blank" rel="noreferrer" className="text-slate-400 hover:text-brand-500 transition-all hover:scale-110 transform duration-300">
+        <a href="https://py.linkedin.com/company/bicsapy" target="_blank" rel="noreferrer" className="text-slate-450 hover:text-[#ff5105] transition-all hover:scale-110 transform duration-200">
           <Linkedin className="w-5 h-5" />
           <span className="sr-only">LinkedIn</span>
         </a>
       </div>
-    </div>
+    </motion.div>
   );
 
   // --- RENDERIZADO ---
@@ -126,24 +206,27 @@ const Login = ({ onLogin }) => {
   // 1. Formulario de Reset de Contraseña
   if (showResetForm) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-orange-50 via-white to-amber-50 relative overflow-hidden grid-overlay p-4">
-        {/* Glow spots */}
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full blur-[120px] glow-spot-orange pointer-events-none transform -translate-x-1/2 -translate-y-1/2"></div>
-        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 rounded-full blur-[120px] glow-spot-purple pointer-events-none transform translate-x-1/2 translate-y-1/2"></div>
+      <div className="flex items-center justify-center min-h-screen bg-slate-50 relative overflow-hidden grid-overlay p-4">
+        {styleTag}
+        
+        {/* Glow spots dinámicos con movimientos fluidos */}
+        <div className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full blur-[110px] bg-brand-500/10 pointer-events-none transform -translate-x-1/2 -translate-y-1/2 tech-glow-spot-1"></div>
+        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 rounded-full blur-[110px] bg-purple-500/10 pointer-events-none transform translate-x-1/2 translate-y-1/2 tech-glow-spot-2"></div>
+        <div className="absolute top-1/2 left-2/3 w-80 h-80 rounded-full blur-[100px] bg-blue-500/10 pointer-events-none transform -translate-x-1/2 -translate-y-1/2 tech-glow-spot-3"></div>
 
         <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, ease: 'easeOut' }}
-          className="w-full max-w-md p-8 glass-card-light rounded-2xl relative z-10 border border-white/60 shadow-xl"
+          variants={containerVariants}
+          initial="hidden"
+          animate="visible"
+          className="w-full max-w-md p-8 tech-card rounded-2xl relative z-10"
         >
           <div className="text-center mb-8">
-            <h2 className="text-3xl font-extrabold text-slate-800 tracking-tight">
+            <motion.h2 variants={itemVariants} className="text-3xl font-extrabold text-slate-800 tracking-tight">
               Recuperar Acceso
-            </h2>
-            <p className="mt-2 text-sm text-slate-500 font-medium">
+            </motion.h2>
+            <motion.p variants={itemVariants} className="mt-2 text-sm text-slate-500 font-medium">
               Ingresa tu email para recibir instrucciones
-            </p>
+            </motion.p>
           </div>
 
           {error && (
@@ -169,7 +252,7 @@ const Login = ({ onLogin }) => {
           )}
 
           <form className="space-y-6" onSubmit={handlePasswordReset}>
-            <div>
+            <motion.div variants={itemVariants}>
               <label htmlFor="reset-email" className="block text-sm font-semibold text-slate-700 mb-2">
                 Correo Electrónico
               </label>
@@ -179,17 +262,17 @@ const Login = ({ onLogin }) => {
                 required
                 value={resetEmail}
                 onChange={(e) => setResetEmail(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none transition-all duration-200 text-slate-800 placeholder-slate-400 bg-white focus:bg-white"
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none tech-input text-slate-850 placeholder-slate-400 bg-white"
                 placeholder="ejemplo@bicsa.com.py"
                 disabled={resetLoading}
               />
-            </div>
+            </motion.div>
 
-            <div className="space-y-4 pt-2">
+            <motion.div variants={itemVariants} className="space-y-4 pt-2">
               <button
                 type="submit"
                 disabled={resetLoading}
-                className="w-full flex justify-center items-center py-3.5 px-4 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-brand-500 to-amber-500 hover:from-brand-600 hover:to-amber-600 shadow-lg shadow-brand-500/10 transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-500 active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed"
+                className="w-full flex justify-center items-center py-3.5 px-4 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-[#ff5105] to-[#ff7733] hover:shadow-lg hover:shadow-[#ff5105]/20 transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#ff5105] active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed"
               >
                 {resetLoading ? (
                   <Loader2 className="w-5 h-5 animate-spin text-white" />
@@ -208,18 +291,18 @@ const Login = ({ onLogin }) => {
                   setResetMessage('');
                   setError('');
                 }}
-                className="w-full py-3.5 px-4 text-sm font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 hover:border-slate-300 rounded-xl transition-all duration-200 focus:outline-none"
+                className="w-full py-3.5 px-4 text-sm font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 hover:border-slate-350 rounded-xl transition-all duration-200 focus:outline-none"
               >
                 Volver al Login
               </button>
-            </div>
+            </motion.div>
           </form>
 
-          <div className="mt-6 text-center">
+          <motion.div variants={itemVariants} className="mt-6 text-center">
             <p className="text-xs text-slate-400">
               Revisa tu carpeta de spam si no recibes el correo en unos minutos.
             </p>
-          </div>
+          </motion.div>
           
           <SocialLinks />
         </motion.div>
@@ -229,24 +312,27 @@ const Login = ({ onLogin }) => {
 
   // 2. Formulario Principal de Login
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-orange-50 via-white to-amber-50 relative overflow-hidden grid-overlay p-4">
-      {/* Glow spots */}
-      <div className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full blur-[120px] glow-spot-orange pointer-events-none transform -translate-x-1/2 -translate-y-1/2"></div>
-      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 rounded-full blur-[120px] glow-spot-purple pointer-events-none transform translate-x-1/2 translate-y-1/2"></div>
+    <div className="flex items-center justify-center min-h-screen bg-slate-50 relative overflow-hidden grid-overlay p-4">
+      {styleTag}
+
+      {/* Glow spots dinámicos con movimientos fluidos */}
+      <div className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full blur-[110px] bg-brand-500/10 pointer-events-none transform -translate-x-1/2 -translate-y-1/2 tech-glow-spot-1"></div>
+      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 rounded-full blur-[110px] bg-purple-500/10 pointer-events-none transform translate-x-1/2 translate-y-1/2 tech-glow-spot-2"></div>
+      <div className="absolute top-1/2 left-2/3 w-80 h-80 rounded-full blur-[100px] bg-blue-500/10 pointer-events-none transform -translate-x-1/2 -translate-y-1/2 tech-glow-spot-3"></div>
 
       <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, ease: 'easeOut' }}
-        className="w-full max-w-md p-8 glass-card-light rounded-2xl relative z-10 border border-white/60 shadow-xl"
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
+        className="w-full max-w-md p-8 tech-card rounded-2xl relative z-10"
       >
         <div className="text-center mb-8">
-          <h2 className="text-3xl font-extrabold text-slate-800 tracking-tight">
+          <motion.h2 variants={itemVariants} className="text-3xl font-extrabold text-slate-800 tracking-tight">
             Iniciar Sesión
-          </h2>
-          <p className="mt-2 text-sm font-semibold text-slate-500">
+          </motion.h2>
+          <motion.p variants={itemVariants} className="mt-2 text-sm font-semibold text-slate-500">
             Registro Consumo MiPymes V3.1 - BICSA
-          </p>
+          </motion.p>
         </div>
 
         {error && (
@@ -262,7 +348,7 @@ const Login = ({ onLogin }) => {
 
         <form className="space-y-6" onSubmit={handleLogin}>
           <div className="space-y-5">
-            <div>
+            <motion.div variants={itemVariants}>
               <label htmlFor="email-address" className="block text-sm font-semibold text-slate-700 mb-2">
                 Correo Electrónico
               </label>
@@ -273,13 +359,13 @@ const Login = ({ onLogin }) => {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none transition-all duration-200 text-slate-800 placeholder-slate-400 bg-white focus:bg-white"
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none tech-input text-slate-850 placeholder-slate-400 bg-white"
                 placeholder="tu@email.com"
                 disabled={loading}
               />
-            </div>
+            </motion.div>
             
-            <div>
+            <motion.div variants={itemVariants}>
               <label htmlFor="password" className="block text-sm font-semibold text-slate-700 mb-2">
                 Contraseña
               </label>
@@ -290,25 +376,25 @@ const Login = ({ onLogin }) => {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none transition-all duration-200 text-slate-800 placeholder-slate-400 bg-white focus:bg-white"
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none tech-input text-slate-850 placeholder-slate-400 bg-white"
                 placeholder="••••••••"
                 disabled={loading}
               />
-            </div>
+            </motion.div>
           </div>
 
-          <div className="bg-brand-50 p-4 rounded-xl border border-brand-100/80 flex items-center">
+          <motion.div variants={itemVariants} className="bg-brand-50 p-4 rounded-xl border border-brand-100/80 flex items-center">
             <Shield className="w-5 h-5 text-brand-600 mr-3 flex-shrink-0" />
             <span className="text-sm font-semibold text-brand-850 leading-tight">
               Tu rol y acceso se determinarán automáticamente.
             </span>
-          </div>
+          </motion.div>
 
-          <div className="pt-2">
+          <motion.div variants={itemVariants} className="pt-2">
             <button
               type="submit"
               disabled={loading}
-              className="w-full flex justify-center items-center py-3.5 px-4 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-brand-500 to-amber-500 hover:from-brand-600 hover:to-amber-600 shadow-lg shadow-brand-500/10 transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-500 active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed"
+              className="w-full flex justify-center items-center py-3.5 px-4 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-[#ff5105] to-[#ff7733] hover:shadow-lg hover:shadow-[#ff5105]/20 transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#ff5105] active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed"
             >
               {loading ? (
                 <Loader2 className="w-5 h-5 animate-spin text-white" />
@@ -319,17 +405,17 @@ const Login = ({ onLogin }) => {
                 </>
               )}
             </button>
-          </div>
+          </motion.div>
 
-          <div className="text-center">
+          <motion.div variants={itemVariants} className="text-center">
             <button
               type="button"
               onClick={() => setShowResetForm(true)}
-              className="text-sm font-bold text-brand-600 hover:text-brand-500 transition-colors"
+              className="text-sm font-bold text-[#ff5105] hover:text-[#ff7733] transition-colors"
             >
               ¿Olvidaste tu contraseña?
             </button>
-          </div>
+          </motion.div>
         </form>
 
         <SocialLinks />
