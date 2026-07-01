@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useInstituciones, useEstadisticas } from '../hooks/useFirebase';
 import DashboardExcel from './DashboardExcel';
+import { sileo } from './sileo'
 import GestionUsuarios from './GestionUsuarios';  // 🆕 Importar el componente
 
 const Admin = () => {
@@ -31,7 +32,7 @@ const Admin = () => {
     setIsLoading(true);
     setTimeout(() => {
       setIsLoading(false);
-      alert('Datos actualizados exitosamente');
+      sileo.success({ title: 'Datos actualizados', description: 'El sistema se actualizó exitosamente.' });
     }, 1500);
   };
 

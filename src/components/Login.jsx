@@ -1,9 +1,10 @@
-// src/components/Login.jsx - DISEÑO RENOVADO MINIMALISTA NARANJA
+// src/components/Login.jsx - DISEÑO PREMIUM LIGHT CON GLASSMORPHISM
 import React, { useState } from 'react';
 import { LogIn, Shield, AlertCircle, Loader2, Mail, Instagram, Facebook, Linkedin } from 'lucide-react';
 import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
+import { motion } from 'framer-motion';
 
 const Login = ({ onLogin }) => {
   const [email, setEmail] = useState('');
@@ -99,21 +100,21 @@ const Login = ({ onLogin }) => {
 
   // Componente de Redes Sociales (Reutilizable)
   const SocialLinks = () => (
-    <div className="mt-8 pt-6 border-t border-orange-100 text-center">
-      <p className="text-sm font-medium text-slate-500 mb-4">
+    <div className="mt-8 pt-6 border-t border-slate-100 text-center">
+      <p className="text-sm font-semibold text-slate-500 mb-4">
         Seguinos en nuestras redes
       </p>
       <div className="flex justify-center space-x-6">
-        <a href="https://www.instagram.com/bicsapy/?hl=es" target="_blank" rel="noreferrer" className="text-slate-400 hover:text-orange-600 transition-colors hover:scale-110 transform">
-          <Instagram className="w-6 h-6" />
+        <a href="https://www.instagram.com/bicsapy/?hl=es" target="_blank" rel="noreferrer" className="text-slate-400 hover:text-brand-500 transition-all hover:scale-110 transform duration-300">
+          <Instagram className="w-5 h-5" />
           <span className="sr-only">Instagram</span>
         </a>
-        <a href="https://www.facebook.com/bicsapy/?locale=es_LA" target="_blank" rel="noreferrer" className="text-slate-400 hover:text-orange-600 transition-colors hover:scale-110 transform">
-          <Facebook className="w-6 h-6" />
+        <a href="https://www.facebook.com/bicsapy/?locale=es_LA" target="_blank" rel="noreferrer" className="text-slate-400 hover:text-brand-500 transition-all hover:scale-110 transform duration-300">
+          <Facebook className="w-5 h-5" />
           <span className="sr-only">Facebook</span>
         </a>
-        <a href="https://py.linkedin.com/company/bicsapy" target="_blank" rel="noreferrer" className="text-slate-400 hover:text-orange-600 transition-colors hover:scale-110 transform">
-          <Linkedin className="w-6 h-6" />
+        <a href="https://py.linkedin.com/company/bicsapy" target="_blank" rel="noreferrer" className="text-slate-400 hover:text-brand-500 transition-all hover:scale-110 transform duration-300">
+          <Linkedin className="w-5 h-5" />
           <span className="sr-only">LinkedIn</span>
         </a>
       </div>
@@ -125,35 +126,51 @@ const Login = ({ onLogin }) => {
   // 1. Formulario de Reset de Contraseña
   if (showResetForm) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-orange-50 via-white to-orange-100 p-4">
-        <div className="w-full max-w-md p-8 bg-white rounded-2xl shadow-xl border border-orange-100/50 backdrop-blur-sm">
-          
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-orange-50 via-white to-amber-50 relative overflow-hidden grid-overlay p-4">
+        {/* Glow spots */}
+        <div className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full blur-[120px] glow-spot-orange pointer-events-none transform -translate-x-1/2 -translate-y-1/2"></div>
+        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 rounded-full blur-[120px] glow-spot-purple pointer-events-none transform translate-x-1/2 translate-y-1/2"></div>
+
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, ease: 'easeOut' }}
+          className="w-full max-w-md p-8 glass-card-light rounded-2xl relative z-10 border border-white/60 shadow-xl"
+        >
           <div className="text-center mb-8">
             <h2 className="text-3xl font-extrabold text-slate-800 tracking-tight">
               Recuperar Acceso
             </h2>
-            <p className="mt-2 text-sm text-slate-500">
+            <p className="mt-2 text-sm text-slate-500 font-medium">
               Ingresa tu email para recibir instrucciones
             </p>
           </div>
 
           {error && (
-            <div className="mb-6 bg-red-50 border-l-4 border-red-500 p-4 rounded-lg flex items-center">
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="mb-6 bg-red-50 border-l-4 border-red-500 p-4 rounded-xl flex items-center border border-red-200"
+            >
               <AlertCircle className="w-5 h-5 text-red-500 mr-3 flex-shrink-0" />
-              <span className="text-sm text-red-700 font-medium">{error}</span>
-            </div>
+              <span className="text-sm text-red-800 font-medium">{error}</span>
+            </motion.div>
           )}
 
           {resetMessage && (
-            <div className="mb-6 bg-emerald-50 border-l-4 border-emerald-500 p-4 rounded-lg flex items-center">
-              <Mail className="w-5 h-5 text-emerald-500 mr-3 flex-shrink-0" />
-              <span className="text-sm text-emerald-700 font-medium">{resetMessage}</span>
-            </div>
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="mb-6 bg-emerald-50 border-l-4 border-emerald-500 p-4 rounded-xl flex items-center border border-emerald-250"
+            >
+              <Mail className="w-5 h-5 text-emerald-600 mr-3 flex-shrink-0" />
+              <span className="text-sm text-emerald-800 font-medium">{resetMessage}</span>
+            </motion.div>
           )}
 
           <form className="space-y-6" onSubmit={handlePasswordReset}>
             <div>
-              <label htmlFor="reset-email" className="block text-sm font-bold text-slate-700 mb-2">
+              <label htmlFor="reset-email" className="block text-sm font-semibold text-slate-700 mb-2">
                 Correo Electrónico
               </label>
               <input
@@ -162,7 +179,7 @@ const Login = ({ onLogin }) => {
                 required
                 value={resetEmail}
                 onChange={(e) => setResetEmail(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all text-slate-700 placeholder-slate-400 bg-slate-50/50 focus:bg-white"
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none transition-all duration-200 text-slate-800 placeholder-slate-400 bg-white focus:bg-white"
                 placeholder="ejemplo@bicsa.com.py"
                 disabled={resetLoading}
               />
@@ -172,7 +189,7 @@ const Login = ({ onLogin }) => {
               <button
                 type="submit"
                 disabled={resetLoading}
-                className="w-full flex justify-center items-center py-3.5 px-4 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-700 hover:to-orange-600 shadow-md transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed"
+                className="w-full flex justify-center items-center py-3.5 px-4 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-brand-500 to-amber-500 hover:from-brand-600 hover:to-amber-600 shadow-lg shadow-brand-500/10 transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-500 active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed"
               >
                 {resetLoading ? (
                   <Loader2 className="w-5 h-5 animate-spin text-white" />
@@ -191,7 +208,7 @@ const Login = ({ onLogin }) => {
                   setResetMessage('');
                   setError('');
                 }}
-                className="w-full py-3.5 px-4 text-sm font-bold text-slate-600 bg-white border-2 border-slate-200 hover:border-slate-300 hover:bg-slate-50 rounded-xl transition-colors focus:outline-none"
+                className="w-full py-3.5 px-4 text-sm font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 hover:border-slate-300 rounded-xl transition-all duration-200 focus:outline-none"
               >
                 Volver al Login
               </button>
@@ -204,38 +221,49 @@ const Login = ({ onLogin }) => {
             </p>
           </div>
           
-          {/* Redes Sociales en el Reset Form también */}
           <SocialLinks />
-        </div>
+        </motion.div>
       </div>
     );
   }
 
   // 2. Formulario Principal de Login
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-orange-50 via-white to-orange-100 p-4">
-      <div className="w-full max-w-md p-8 bg-white rounded-2xl shadow-xl border border-orange-100/50 backdrop-blur-sm">
-        
+    <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-orange-50 via-white to-amber-50 relative overflow-hidden grid-overlay p-4">
+      {/* Glow spots */}
+      <div className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full blur-[120px] glow-spot-orange pointer-events-none transform -translate-x-1/2 -translate-y-1/2"></div>
+      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 rounded-full blur-[120px] glow-spot-purple pointer-events-none transform translate-x-1/2 translate-y-1/2"></div>
+
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: 'easeOut' }}
+        className="w-full max-w-md p-8 glass-card-light rounded-2xl relative z-10 border border-white/60 shadow-xl"
+      >
         <div className="text-center mb-8">
           <h2 className="text-3xl font-extrabold text-slate-800 tracking-tight">
             Iniciar Sesión
           </h2>
-          <p className="mt-2 text-sm font-medium text-slate-500">
-            Registro Consumo MiPymes V3-BICSA
+          <p className="mt-2 text-sm font-semibold text-slate-500">
+            Registro Consumo MiPymes V3.1 - BICSA
           </p>
         </div>
 
         {error && (
-          <div className="mb-6 bg-red-50 border-l-4 border-red-500 p-4 rounded-lg flex items-center">
+          <motion.div 
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="mb-6 bg-red-50 border-l-4 border-red-500 p-4 rounded-xl flex items-center border border-red-200"
+          >
             <AlertCircle className="w-5 h-5 text-red-500 mr-3 flex-shrink-0" />
-            <span className="text-sm text-red-700 font-medium">{error}</span>
-          </div>
+            <span className="text-sm text-red-800 font-medium">{error}</span>
+          </motion.div>
         )}
 
         <form className="space-y-6" onSubmit={handleLogin}>
           <div className="space-y-5">
             <div>
-              <label htmlFor="email-address" className="block text-sm font-bold text-slate-700 mb-2">
+              <label htmlFor="email-address" className="block text-sm font-semibold text-slate-700 mb-2">
                 Correo Electrónico
               </label>
               <input
@@ -245,14 +273,14 @@ const Login = ({ onLogin }) => {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all text-slate-700 placeholder-slate-400 bg-slate-50/50 focus:bg-white"
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none transition-all duration-200 text-slate-800 placeholder-slate-400 bg-white focus:bg-white"
                 placeholder="tu@email.com"
                 disabled={loading}
               />
             </div>
             
             <div>
-              <label htmlFor="password" className="block text-sm font-bold text-slate-700 mb-2">
+              <label htmlFor="password" className="block text-sm font-semibold text-slate-700 mb-2">
                 Contraseña
               </label>
               <input
@@ -262,16 +290,16 @@ const Login = ({ onLogin }) => {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all text-slate-700 placeholder-slate-400 bg-slate-50/50 focus:bg-white"
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none transition-all duration-200 text-slate-800 placeholder-slate-400 bg-white focus:bg-white"
                 placeholder="••••••••"
                 disabled={loading}
               />
             </div>
           </div>
 
-          <div className="bg-orange-50/80 p-4 rounded-xl border border-orange-100 flex items-center">
-            <Shield className="w-5 h-5 text-orange-500 mr-3 flex-shrink-0" />
-            <span className="text-sm font-medium text-orange-800 leading-tight">
+          <div className="bg-brand-50 p-4 rounded-xl border border-brand-100/80 flex items-center">
+            <Shield className="w-5 h-5 text-brand-600 mr-3 flex-shrink-0" />
+            <span className="text-sm font-semibold text-brand-850 leading-tight">
               Tu rol y acceso se determinarán automáticamente.
             </span>
           </div>
@@ -280,7 +308,7 @@ const Login = ({ onLogin }) => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full flex justify-center items-center py-3.5 px-4 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-700 hover:to-orange-600 shadow-md transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed"
+              className="w-full flex justify-center items-center py-3.5 px-4 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-brand-500 to-amber-500 hover:from-brand-600 hover:to-amber-600 shadow-lg shadow-brand-500/10 transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-500 active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed"
             >
               {loading ? (
                 <Loader2 className="w-5 h-5 animate-spin text-white" />
@@ -297,17 +325,15 @@ const Login = ({ onLogin }) => {
             <button
               type="button"
               onClick={() => setShowResetForm(true)}
-              className="text-sm font-bold text-orange-600 hover:text-orange-700 transition-colors"
+              className="text-sm font-bold text-brand-600 hover:text-brand-500 transition-colors"
             >
               ¿Olvidaste tu contraseña?
             </button>
           </div>
         </form>
 
-        {/* Nueva sección de Redes Sociales */}
         <SocialLinks />
-        
-      </div>
+      </motion.div>
     </div>
   );
 };

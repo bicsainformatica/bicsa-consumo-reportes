@@ -1,5 +1,7 @@
 // src/components/Facturacion.jsx
 import React, { useState, useEffect } from 'react';
+import { sileo } from './sileo';
+import { confirmar } from '../utils/confirmar';
 import { 
   Calculator, PlusCircle, Search, X, CheckCircle, AlertCircle, Clock, 
   FileText, Printer, ShieldAlert, Loader2, CheckSquare, ClipboardList, DollarSign, History, Filter, Edit3, Save, MessageCircle, Copy, Download, Trash2, Send
@@ -231,9 +233,9 @@ const Facturacion = () => {
 
         await logAuditoria(docRef.id, 'Creación de Factura', `Factura ${formData.nroFactura} creada por ${montoTotalNum.toLocaleString()}Gs a ${plazoNum} meses.`);
         onClose();
-        alert("Factura generada y guardada. Estado inicial: Pendiente.");
+        sileo.success({ title: 'Factura generada', description: `Factura ${formData.nroFactura} guardada. Estado: Pendiente.` });
       } catch (err) {
-        alert("Error al guardar: " + err.message);
+        sileo.error({ title: 'Error al guardar', description: err.message });
       }
       setSaving(false);
     };
@@ -345,9 +347,9 @@ const Facturacion = () => {
         const detalleLog = regenerarCuotas ? `REGENERACIÓN de cuotera: ${datosParaActualizar.plazoMeses} meses por ${datosParaActualizar.montoTotal} Gs.` : `Edición de datos/estado a: ${formData.estadoGeneral}`;
         await logAuditoria(factura.id, 'Edición de Metadatos', detalleLog);
         onClose();
-        alert("Factura actualizada correctamente.");
+        sileo.success({ title: 'Factura actualizada', description: 'Los datos se guardaron correctamente.' });
       } catch (error) {
-        alert("Error al actualizar: " + error.message);
+        sileo.error({ title: 'Error al actualizar', description: error.message });
       }
       setSaving(false);
     };
@@ -432,7 +434,7 @@ const Facturacion = () => {
         await updateDoc(doc(db, 'facturas', factura.id), { notas: notasActualizadas });
         await logAuditoria(factura.id, 'Nota Agregada', `Comentario: "${nuevaNota.substring(0, 30)}..."`);
         setNuevaNota('');
-      } catch (error) { alert("Error al guardar nota: " + error.message); }
+      } catch (error) { sileo.error({ title: 'Error al guardar nota', description: error.message }); }
       setSaving(false);
     };
 
@@ -486,16 +488,20 @@ const Facturacion = () => {
     };
 
     const guardarCambios = async () => {
-      if(window.confirm('¿Guardar los cambios en los estados de pago?')) {
-        const todasPagadas = cuotas.every(c => c.estado === 'pagado');
-        let nuevoEstadoGeneral = factura.estadoGeneral;
-        if (todasPagadas && factura.estadoGeneral === 'activa') nuevoEstadoGeneral = 'completada';
-        else if (!todasPagadas && factura.estadoGeneral === 'completada') nuevoEstadoGeneral = 'activa';
-        await updateDoc(doc(db, 'facturas', factura.id), { cuotas: cuotas, estadoGeneral: nuevoEstadoGeneral });
-        await logAuditoria(factura.id, 'Actualización de Pagos', `Se actualizaron las cuotas de la factura ${factura.nroFactura}`);
-        setHuboCambios(false);
-        alert('Pagos guardados.');
-      }
+      confirmar(
+        'Guardar cambios de pago',
+        '¿Confirmas los cambios en los estados de pago?',
+        async () => {
+          const todasPagadas = cuotas.every(c => c.estado === 'pagado');
+          let nuevoEstadoGeneral = factura.estadoGeneral;
+          if (todasPagadas && factura.estadoGeneral === 'activa') nuevoEstadoGeneral = 'completada';
+          else if (!todasPagadas && factura.estadoGeneral === 'completada') nuevoEstadoGeneral = 'activa';
+          await updateDoc(doc(db, 'facturas', factura.id), { cuotas: cuotas, estadoGeneral: nuevoEstadoGeneral });
+          await logAuditoria(factura.id, 'Actualización de Pagos', `Se actualizaron las cuotas de la factura ${factura.nroFactura}`);
+          setHuboCambios(false);
+          sileo.success({ title: 'Pagos guardados', description: 'Los estados de pago se actualizaron.' });
+        }
+      );
     };
 
     const generarPDF = () => {
@@ -634,23 +640,31 @@ const Facturacion = () => {
   });
 
   const handleRenovarFactura = async (f) => {
-    if(window.confirm('¿Deseas iniciar una Nueva Factura para esta institución?\n\nLa factura actual se marcará automáticamente como "Finalizada" para que el historial quede limpio y se abrirá el panel para crear la nueva.')){
-      try {
-        await updateDoc(doc(db, 'facturas', f.id), { estadoGeneral: 'no_renovada' });
-        await logAuditoria(f.id, 'Renovación Iniciada', `La factura ${f.nroFactura} fue finalizada para dar paso a una nueva.`);
-        setDatosRenovacion({ institucionNombre: f.institucionNombre, ruc: f.ruc, montoTotal: f.montoTotal, plazoMeses: f.plazoMeses, institucionId: f.institucionId });
-        setShowNuevaFactura(true);
-      } catch (error) { alert("Error al renovar la factura: " + error.message); }
-    }
+    confirmar(
+      'Renovar factura',
+      `¿Iniciar una nueva factura para "${f.institucionNombre}"? La actual se marcará como "Finalizada".`,
+      async () => {
+        try {
+          await updateDoc(doc(db, 'facturas', f.id), { estadoGeneral: 'no_renovada' });
+          await logAuditoria(f.id, 'Renovación Iniciada', `La factura ${f.nroFactura} fue finalizada para dar paso a una nueva.`);
+          setDatosRenovacion({ institucionNombre: f.institucionNombre, ruc: f.ruc, montoTotal: f.montoTotal, plazoMeses: f.plazoMeses, institucionId: f.institucionId });
+          setShowNuevaFactura(true);
+        } catch (error) { sileo.error({ title: 'Error al renovar', description: error.message }); }
+      }
+    );
   };
 
   const handleDeleteFactura = async (f) => {
-    if(window.confirm(`¿Estás seguro de que deseas eliminar la factura ${f.nroFactura} de ${f.institucionNombre}?`)) {
-      try {
-        await deleteDoc(doc(db, 'facturas', f.id));
-        await logAuditoria(f.id, 'Eliminación de Factura', `Se eliminó la factura ${f.nroFactura}.`);
-      } catch (error) { alert("Error al eliminar la factura: " + error.message); }
-    }
+    confirmar(
+      'Eliminar factura',
+      `¿Eliminar la factura ${f.nroFactura} de ${f.institucionNombre}? Esta acción no se puede deshacer.`,
+      async () => {
+        try {
+          await deleteDoc(doc(db, 'facturas', f.id));
+          await logAuditoria(f.id, 'Eliminación de Factura', `Se eliminó la factura ${f.nroFactura}.`);
+        } catch (error) { sileo.error({ title: 'Error al eliminar', description: error.message }); }
+      }
+    );
   };
 
   return (

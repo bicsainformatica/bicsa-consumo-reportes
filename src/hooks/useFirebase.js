@@ -359,6 +359,7 @@ export const useUsuarios = () => {
         nombre: nuevoUsuario.nombre,
         email: nuevoUsuario.email,
         rol: nuevoUsuario.rol, // admin, contabilidad, usuario
+        area: nuevoUsuario.area || '', // Guardamos el Área del Usuario
         permisos: nuevoUsuario.permisos || null, // ✨ GUARDAMOS LOS PERMISOS AQUI
         fechaCreacion: serverTimestamp(),
         activo: true,
@@ -417,6 +418,7 @@ export const useUsuarios = () => {
       await updateDoc(usuarioRef, {
         nombre: datosActualizados.nombre,
         rol: datosActualizados.rol,
+        area: datosActualizados.area || '', // Actualizamos el Área del Usuario al Editar
         permisos: datosActualizados.permisos,
         fechaModificacion: serverTimestamp(),
         modificadoPor: auth.currentUser?.uid
@@ -450,6 +452,14 @@ export const useComentarios = (institucionId) => {
       (querySnapshot) => {
         const comentariosData = [];
         querySnapshot.forEach((doc) => { comentariosData.push({ id: doc.id, ...doc.data() }); });
+        
+        // ✨ ORDENAR: Fijados primero
+        comentariosData.sort((a, b) => {
+           if (a.fijado && !b.fijado) return -1;
+           if (!a.fijado && b.fijado) return 1;
+           return 0;
+        });
+
         setComentarios(comentariosData);
         setLoading(false);
       },
@@ -460,10 +470,24 @@ export const useComentarios = (institucionId) => {
 
   const agregarComentario = async (nuevoComentario) => {
     try {
+      let area = 'Sin Dato área';
+      let nombre = auth.currentUser.displayName || auth.currentUser.email;
+      if (auth.currentUser?.uid) {
+        const userDocRef = doc(db, 'usuarios', auth.currentUser.uid);
+        const userSnap = await getDoc(userDocRef);
+        if (userSnap.exists()) {
+          if (userSnap.data().area) area = userSnap.data().area;
+          if (userSnap.data().nombre) nombre = userSnap.data().nombre;
+        }
+      }
+
       const docRef = await addDoc(collection(db, 'comentarios'), {
         texto: nuevoComentario.texto,
         institucionId: nuevoComentario.institucionId,
-        autorNombre: auth.currentUser.displayName || auth.currentUser.email,
+        etiqueta: area, // Guardamos el Area en vez de la etiqueta estatica antigua para compatibilidad retroactiva o en un nuevo campo
+        autorArea: area, 
+        fijado: false,
+        autorNombre: nombre,
         autorEmail: auth.currentUser.email,
         autorUid: auth.currentUser.uid,
         fechaCreacion: serverTimestamp(),
@@ -502,7 +526,19 @@ export const useComentarios = (institucionId) => {
     }
   };
 
-  return { comentarios, loading, error, agregarComentario, editarComentario, eliminarComentario };
+  const toggleFijarComentario = async (comentarioId, estadoActual) => {
+    try {
+      const comentarioRef = doc(db, 'comentarios', comentarioId);
+      await updateDoc(comentarioRef, {
+        fijado: !estadoActual
+      });
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  };
+
+  return { comentarios, loading, error, agregarComentario, editarComentario, eliminarComentario, toggleFijarComentario };
 };
 
 export const useContadorComentarios = (institucionId) => {

@@ -1,5 +1,7 @@
 // src/components/GestionUsuarios.jsx
 import React, { useState, useEffect } from 'react';
+import { sileo } from './sileo';
+import { confirmar } from '../utils/confirmar';
 import { 
   Users, UserPlus, X, Trash2, Shield, User,
   CheckCircle, AlertCircle, Loader2, Calculator, Edit3, PieChart
@@ -13,6 +15,7 @@ const ModalUsuario = ({ usuarioAEditar, onClose, onSave, onEdit }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [tipoPerfil, setTipoPerfil] = useState('usuario'); 
+  const [area, setArea] = useState('');
   
   const [permisos, setPermisos] = useState({
     instituciones: { ver: true, agregar: false, editar: false, eliminar: false, registrarConsumo: false, comentar: false, verHistorial: false },
@@ -27,6 +30,7 @@ const ModalUsuario = ({ usuarioAEditar, onClose, onSave, onEdit }) => {
       setNombre(usuarioAEditar.nombre || '');
       setEmail(usuarioAEditar.email || '');
       setTipoPerfil(usuarioAEditar.rol || 'usuario');
+      setArea(usuarioAEditar.area || '');
       if (usuarioAEditar.permisos) {
         setPermisos({
           ...usuarioAEditar.permisos,
@@ -75,7 +79,7 @@ const ModalUsuario = ({ usuarioAEditar, onClose, onSave, onEdit }) => {
   const handleSubmit = async () => {
     if (nombre.trim() && email.trim()) {
       if (!isEdit && !password.trim()) {
-        alert("Por favor, ingrese una contraseña para el nuevo usuario.");
+        sileo.warning({ title: 'Campo requerido', description: 'Por favor, ingrese una contraseña para el nuevo usuario.' });
         return;
       }
 
@@ -86,24 +90,26 @@ const ModalUsuario = ({ usuarioAEditar, onClose, onSave, onEdit }) => {
           nombre: nombre.trim(),
           email: email.trim(),
           rol: tipoPerfil,
+          area: area,
           permisos: permisos 
         });
         if (resultado.success) onClose();
-        else alert(`Error al editar usuario: ${resultado.error}`);
+        else sileo.error({ title: 'Error al editar usuario', description: resultado.error });
       } else {
         const resultado = await onSave({
           nombre: nombre.trim(),
           email: email.trim(),
           password: password.trim(),
           rol: tipoPerfil,
+          area: area,
           permisos: permisos 
         });
         if (resultado.success) onClose();
-        else alert(`Error al crear usuario: ${resultado.error}`);
+        else sileo.error({ title: 'Error al crear usuario', description: resultado.error });
       }
       setSaving(false);
     } else {
-      alert("Por favor, complete todos los campos requeridos.");
+      sileo.warning({ title: 'Campos incompletos', description: 'Por favor, complete todos los campos requeridos.' });
     }
   };
 
@@ -152,6 +158,19 @@ const ModalUsuario = ({ usuarioAEditar, onClose, onSave, onEdit }) => {
                 <option value="usuario">👤 Operador (Instituciones)</option>
                 <option value="contabilidad">📊 Contabilidad</option>
                 <option value="admin">🛡️ Administrador (Acceso Total)</option>
+              </select>
+            </div>
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Área / Departamento</label>
+              <select value={area} onChange={(e) => setArea(e.target.value)} className="w-full p-2.5 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none" disabled={saving}>
+                <option value="">Seleccione un área...</option>
+                <option value="Informática">Informática</option>
+                <option value="Contabilidad">Contabilidad</option>
+                <option value="Gerencia">Gerencia</option>
+                <option value="Marketing">Marketing</option>
+                <option value="ATC">ATC</option>
+                <option value="Administración">Administración</option>
+                <option value="Comercial">Comercial</option>
               </select>
             </div>
           </div>
@@ -234,27 +253,31 @@ const GestionUsuarios = () => {
 
   const handleSave = async (nuevoUsuario) => {
     const resultado = await agregarUsuario(nuevoUsuario);
-    if (resultado.success) alert(`Usuario "${nuevoUsuario.nombre}" creado exitosamente!`);
+    if (resultado.success) sileo.success({ title: 'Usuario creado', description: `"${nuevoUsuario.nombre}" fue creado exitosamente.` });
     return resultado;
   };
 
   const handleEdit = async (uid, datos) => {
     const resultado = await editarUsuario(uid, datos);
-    if (resultado.success) alert(`Usuario "${datos.nombre}" actualizado exitosamente!`);
+    if (resultado.success) sileo.success({ title: 'Usuario actualizado', description: `"${datos.nombre}" fue actualizado exitosamente.` });
     return resultado;
   };
 
   const handleDelete = async (uid, nombre) => {
-    if (window.confirm(`¿Estás seguro de que quieres eliminar al usuario "${nombre}"?`)) {
-      const resultado = await eliminarUsuario(uid, nombre);
-      if (resultado.success) alert(`Usuario "${nombre}" eliminado exitosamente!`);
-      else alert(`Error al eliminar: ${resultado.error}`);
-    }
+    confirmar(
+      'Eliminar usuario',
+      `¿Estás seguro de que quieres eliminar al usuario "${nombre}"? Esta acción no se puede deshacer.`,
+      async () => {
+        const resultado = await eliminarUsuario(uid, nombre);
+        if (resultado.success) sileo.success({ title: 'Usuario eliminado', description: `"${nombre}" fue eliminado exitosamente.` });
+        else sileo.error({ title: 'Error al eliminar', description: resultado.error });
+      }
+    );
   };
 
   const handleToggleActivo = async (uid) => {
     const resultado = await toggleUsuarioActivo(uid);
-    if (!resultado.success) alert(`Error: ${resultado.error}`);
+    if (!resultado.success) sileo.error({ title: 'Error', description: resultado.error });
   };
 
   if (loading && usuarios.length === 0) return <div className="p-10 flex justify-center"><Loader2 size={48} className="animate-spin text-blue-600" /></div>;
@@ -289,7 +312,7 @@ const GestionUsuarios = () => {
                       {usuario.rol === 'admin' ? <Shield className="text-blue-600" size={20} /> : usuario.rol === 'contabilidad' ? <Calculator className="text-purple-600" size={20} /> : <User className="text-gray-600" size={20} />}
                     </div>
                     <div className="ml-4">
-                      <div className="text-sm font-bold text-gray-900">{usuario.nombre}</div>
+                      <div className="text-sm font-bold text-gray-900">{usuario.nombre} <span className="ml-1 text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded border border-gray-200">{usuario.area || 'Sin Dato área'}</span></div>
                       <div className="text-sm text-gray-500">{usuario.email}</div>
                     </div>
                   </div>

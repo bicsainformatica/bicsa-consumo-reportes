@@ -10,13 +10,17 @@ import {
   Clock,
   Save,
   AlertCircle,
-  Loader2
+  Loader2,
+  Pin
 } from 'lucide-react';
-import { useComentarios } from '../hooks/useFirebase';
+import { useComentarios, useUsuarios } from '../hooks/useFirebase';
 import { auth } from '../firebase';
+import { sileo } from './sileo';
+import { confirmar } from '../utils/confirmar';
 
 const ModalComentarios = ({ institucion, onClose }) => {
   const [nuevoComentario, setNuevoComentario] = useState('');
+  const [etiqueta, setEtiqueta] = useState('General');
   const [comentarioEditando, setComentarioEditando] = useState(null);
   const [textoEditando, setTextoEditando] = useState('');
   const [saving, setSaving] = useState(false);
@@ -27,14 +31,21 @@ const ModalComentarios = ({ institucion, onClose }) => {
     error,
     agregarComentario,
     editarComentario,
-    eliminarComentario 
+    eliminarComentario,
+    toggleFijarComentario
   } = useComentarios(institucion.id);
 
+  const { usuarios } = useUsuarios();
   const currentUser = auth.currentUser;
+
+  const getNombreUsuario = (uid, defaultName) => {
+    const usuario = usuarios?.find(u => u.uid === uid || u.id === uid);
+    return usuario?.nombre || defaultName;
+  };
 
   const handleAgregarComentario = async () => {
     if (!nuevoComentario.trim()) {
-      alert('Por favor, escribe un comentario antes de enviarlo.');
+      sileo.warning({ title: 'Campo vacío', description: 'Por favor, escribe un comentario antes de enviarlo.' });
       return;
     }
 
@@ -42,17 +53,18 @@ const ModalComentarios = ({ institucion, onClose }) => {
     try {
       const resultado = await agregarComentario({
         texto: nuevoComentario.trim(),
-        institucionId: institucion.id
+        institucionId: institucion.id,
+        etiqueta
       });
 
-      if (resultado.success) {
-        setNuevoComentario('');
-        // No necesitamos alert porque el comentario aparece inmediatamente
+      if (!resultado.success) {
+        sileo.error({ title: 'Error al agregar comentario', description: resultado.error });
       } else {
-        alert(`Error al agregar comentario: ${resultado.error}`);
+        setNuevoComentario('');
+        setEtiqueta('General');
       }
     } catch (error) {
-      alert(`Error inesperado: ${error.message}`);
+      sileo.error({ title: 'Error inesperado', description: error.message });
     } finally {
       setSaving(false);
     }
@@ -60,7 +72,7 @@ const ModalComentarios = ({ institucion, onClose }) => {
 
   const handleEditarComentario = async (comentarioId) => {
     if (!textoEditando.trim()) {
-      alert('El comentario no puede estar vacío.');
+      sileo.warning({ title: 'Campo vacío', description: 'El comentario no puede estar vacío.' });
       return;
     }
 
@@ -72,32 +84,33 @@ const ModalComentarios = ({ institucion, onClose }) => {
         setComentarioEditando(null);
         setTextoEditando('');
       } else {
-        alert(`Error al editar comentario: ${resultado.error}`);
+        sileo.error({ title: 'Error al editar comentario', description: resultado.error });
       }
     } catch (error) {
-      alert(`Error inesperado: ${error.message}`);
+      sileo.error({ title: 'Error inesperado', description: error.message });
     } finally {
       setSaving(false);
     }
   };
 
   const handleEliminarComentario = async (comentarioId, autorNombre) => {
-    if (window.confirm(`¿Estás seguro de que quieres eliminar este comentario?\n\nEsta acción no se puede deshacer.`)) {
-      setSaving(true);
-      try {
-        const resultado = await eliminarComentario(comentarioId);
-        
-        if (resultado.success) {
-          // El comentario desaparecerá automáticamente por el listener en tiempo real
-        } else {
-          alert(`Error al eliminar comentario: ${resultado.error}`);
+    confirmar(
+      'Eliminar comentario',
+      `¿Estás seguro de que quieres eliminar este comentario? Esta acción no se puede deshacer.`,
+      async () => {
+        setSaving(true);
+        try {
+          const resultado = await eliminarComentario(comentarioId);
+          if (!resultado.success) {
+            sileo.error({ title: 'Error al eliminar comentario', description: resultado.error });
+          }
+        } catch (error) {
+          sileo.error({ title: 'Error inesperado', description: error.message });
+        } finally {
+          setSaving(false);
         }
-      } catch (error) {
-        alert(`Error inesperado: ${error.message}`);
-      } finally {
-        setSaving(false);
       }
-    }
+    );
   };
 
   const iniciarEdicion = (comentario) => {
@@ -127,6 +140,18 @@ const ModalComentarios = ({ institucion, onClose }) => {
 
   const puedeEditar = (comentario) => {
     return currentUser && comentario.autorUid === currentUser.uid;
+  };
+
+  const parseMensajes = (texto) => {
+    if (!texto) return null;
+    const regex = /(@\w+)/g;
+    const parts = texto.split(regex);
+    return parts.map((part, i) => {
+      if (regex.test(part)) {
+        return <span key={i} className="font-bold text-blue-700 bg-blue-100 px-1 rounded-sm">{part}</span>;
+      }
+      return part;
+    });
   };
 
   return (
@@ -179,23 +204,36 @@ const ModalComentarios = ({ institucion, onClose }) => {
               </div>
             ) : (
               comentarios.map((comentario) => (
-                <div key={comentario.id} className="bg-gray-50 rounded-lg p-4 border border-gray-200 shadow-sm">
+                <div key={comentario.id} className={`rounded-lg p-4 border shadow-sm transition-all ${comentario.fijado ? 'border-amber-400 bg-amber-50' : 'bg-gray-50 border-gray-200'}`}>
                   
                   {/* Header del comentario */}
                   <div className="flex justify-between items-start mb-3">
                     <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 bg-orange-500 rounded-full flex items-center justify-center shadow-inner">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center shadow-inner ${comentario.fijado ? 'bg-amber-600' : 'bg-orange-500'}`}>
                         <User size={20} className="text-white" />
                       </div>
                       <div>
-                        <div className="font-bold text-gray-800">{comentario.autorNombre}</div>
+                        <div className="font-bold text-gray-800 flex items-center flex-wrap gap-2">
+                          {getNombreUsuario(comentario.autorUid, comentario.autorNombre)}
+                          <span className="text-[10px] px-2 py-0.5 bg-gray-200 text-gray-700 rounded-full font-bold uppercase tracking-wider">{comentario.autorArea || (comentario.etiqueta === 'General' ? 'Sin Dato área' : (comentario.etiqueta || 'Sin Dato área'))}</span>
+                          {comentario.fijado && <span className="text-[10px] px-2 py-0.5 bg-amber-200 text-amber-800 rounded-full font-bold uppercase tracking-wider">📌 Fijado</span>}
+                        </div>
                         <div className="text-sm text-gray-500">{comentario.autorEmail}</div>
                       </div>
                     </div>
                     
-                    {/* Acciones (solo para el autor) */}
+                    {/* Acciones */}
                     {puedeEditar(comentario) && (
                       <div className="flex space-x-2">
+                        <button
+                          onClick={() => toggleFijarComentario(comentario.id, comentario.fijado || false)}
+                          className={`p-1.5 rounded transition-colors ${comentario.fijado ? 'text-amber-600 hover:bg-amber-100' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}
+                          title={comentario.fijado ? "Desfijar comentario" : "Fijar comentario"}
+                          disabled={saving}
+                        >
+                          <Pin size={16} className={comentario.fijado ? "fill-amber-600" : ""} />
+                        </button>
+                        
                         {comentarioEditando === comentario.id ? (
                           <div className="flex space-x-1">
                             <button
@@ -252,7 +290,7 @@ const ModalComentarios = ({ institucion, onClose }) => {
                       />
                     ) : (
                       <p className="text-gray-700 leading-relaxed whitespace-pre-wrap pl-13">
-                        {comentario.texto}
+                        {parseMensajes(comentario.texto)}
                       </p>
                     )}
                   </div>
@@ -282,8 +320,10 @@ const ModalComentarios = ({ institucion, onClose }) => {
                 <User size={20} className="text-white" />
                 </div>
                 <div className="flex-1">
-                <div className="text-sm text-gray-600 mb-2">
-                    Comentando como: <span className="font-bold text-orange-700">{currentUser?.displayName || currentUser?.email}</span>
+                <div className="flex justify-between items-center mb-2">
+                    <div className="text-sm text-gray-600">
+                        Comentando como: <span className="font-bold text-orange-700">{getNombreUsuario(currentUser?.uid, currentUser?.displayName || currentUser?.email)}</span>
+                    </div>
                 </div>
                 <textarea
                     value={nuevoComentario}

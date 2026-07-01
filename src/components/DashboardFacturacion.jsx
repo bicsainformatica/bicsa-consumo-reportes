@@ -28,10 +28,10 @@ const DashboardFacturacion = () => {
     let hasVencido = false;
     let minDays = Infinity;
 
-    if (!factura.cuotas || factura.cuotas.length === 0) return { texto: 'Sin Cuotas', clase: 'text-gray-500 bg-gray-100', valor: 'al_dia' };
+    if (!factura.cuotas || factura.cuotas.length === 0) return { texto: 'Sin Cuotas', clase: 'text-slate-500 bg-slate-100 border border-slate-200', valor: 'al_dia' };
 
     const todasPagadas = factura.cuotas.every(c => c.estado === 'pagado');
-    if (todasPagadas) return { texto: 'Al Día (Pagado)', clase: 'text-green-700 bg-green-100', valor: 'al_dia' };
+    if (todasPagadas) return { texto: 'Al Día (Pagado)', clase: 'text-green-700 bg-green-50 border border-green-200', valor: 'al_dia' };
 
     factura.cuotas.forEach(cuota => {
       if (cuota.estado === 'pendiente') {
@@ -44,12 +44,12 @@ const DashboardFacturacion = () => {
       }
     });
 
-    if (hasVencido) return { texto: 'Vencido', clase: 'text-red-700 bg-red-100 border border-red-200', valor: 'vencidos' };
-    if (minDays <= 3) return { texto: `Por Vencer (${minDays} días)`, clase: 'text-amber-800 bg-amber-100 border border-amber-300', valor: 'vencer_3' };
-    if (minDays <= 5) return { texto: `Por Vencer (${minDays} días)`, clase: 'text-yellow-800 bg-yellow-100 border border-yellow-300', valor: 'vencer_5' };
-    if (minDays <= 7) return { texto: `Por Vencer (${minDays} días)`, clase: 'text-orange-800 bg-orange-100 border border-orange-300', valor: 'vencer_7' };
+    if (hasVencido) return { texto: 'Vencido', clase: 'text-red-700 bg-red-50 border border-red-200', valor: 'vencidos' };
+    if (minDays <= 3) return { texto: `Por Vencer (${minDays} días)`, clase: 'text-amber-800 bg-amber-50 border border-amber-300', valor: 'vencer_3' };
+    if (minDays <= 5) return { texto: `Por Vencer (${minDays} días)`, clase: 'text-yellow-800 bg-yellow-50 border border-yellow-250', valor: 'vencer_5' };
+    if (minDays <= 7) return { texto: `Por Vencer (${minDays} días)`, clase: 'text-orange-850 bg-orange-50 border border-orange-200', valor: 'vencer_7' };
     
-    return { texto: 'Al Día', clase: 'text-emerald-700 bg-emerald-100', valor: 'al_dia' };
+    return { texto: 'Al Día', clase: 'text-emerald-700 bg-emerald-50 border border-emerald-200', valor: 'al_dia' };
   };
 
   const datosFiltrados = facturas.filter(f => {
@@ -105,39 +105,69 @@ const DashboardFacturacion = () => {
     return sum;
   }, 0);
 
-  if (loading) return <div className="p-10 flex justify-center"><Loader2 className="animate-spin text-purple-600" size={40}/></div>;
+  if (loading) {
+    return (
+      <div className="bg-slate-50 p-10 min-h-screen flex justify-center items-center relative overflow-hidden grid-overlay">
+        <Loader2 className="animate-spin text-purple-600" size={40}/>
+      </div>
+    );
+  }
 
   return (
-    <div className="p-6 sm:p-10 bg-gray-50 min-h-screen">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8">
+    <div className="p-6 sm:p-10 bg-slate-50 min-h-screen relative overflow-hidden grid-overlay">
+      
+      {/* Background Glow Spots */}
+      <div className="absolute top-10 left-10 w-96 h-96 rounded-full blur-[150px] glow-spot-orange pointer-events-none"></div>
+      <div className="absolute bottom-10 right-10 w-96 h-96 rounded-full blur-[150px] glow-spot-purple pointer-events-none"></div>
+
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 relative z-10">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 flex items-center">
-            <PieChart className="mr-3 text-purple-700" size={32}/> Dashboard Facturación
+          <h1 className="text-3xl font-extrabold text-slate-800 flex items-center tracking-tight">
+            <PieChart className="mr-3 text-purple-650" size={32}/> Dashboard Facturación
           </h1>
-          <p className="text-gray-600 font-medium mt-1">Resumen de cuentas por cobrar y estado de cartera</p>
+          <p className="text-slate-500 font-medium mt-1">Resumen de cuentas por cobrar y estado de cartera</p>
         </div>
-        <button onClick={exportarExcel} className="mt-4 md:mt-0 bg-emerald-600 text-white px-5 py-2.5 rounded-lg font-bold flex items-center shadow-sm hover:bg-emerald-700 transition-colors">
+        <button 
+          onClick={exportarExcel} 
+          className="mt-4 md:mt-0 bg-emerald-600 text-white px-5 py-2.5 rounded-xl font-bold flex items-center shadow-lg shadow-emerald-600/10 hover:bg-emerald-700 transition-all active:scale-95"
+        >
           <FileSpreadsheet size={18} className="mr-2"/> Exportar Excel
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-        <div className="bg-white p-6 rounded-xl shadow-sm border-l-4 border-amber-500 flex items-center justify-between">
-          <div><p className="text-sm font-bold text-gray-500 uppercase mb-1">Total Pendiente (Proyectado)</p><p className="text-3xl font-black text-amber-600">{totalCobrar.toLocaleString()} Gs</p></div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 relative z-10">
+        <div className="bg-white p-6 rounded-xl border border-slate-200/80 border-l-4 border-amber-500 flex items-center justify-between shadow-md">
+          <div>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Total Pendiente (Proyectado)</p>
+            <p className="text-3xl font-black text-amber-600">{totalCobrar.toLocaleString()} Gs</p>
+          </div>
           <DollarSign size={40} className="text-amber-200" />
         </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border-l-4 border-red-500 flex items-center justify-between">
-          <div><p className="text-sm font-bold text-gray-500 uppercase mb-1">Monto Vencido (Atrasado)</p><p className="text-3xl font-black text-red-600">{totalVencido.toLocaleString()} Gs</p></div>
+        <div className="bg-white p-6 rounded-xl border border-slate-200/80 border-l-4 border-red-500 flex items-center justify-between shadow-md">
+          <div>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Monto Vencido (Atrasado)</p>
+            <p className="text-3xl font-black text-red-600">{totalVencido.toLocaleString()} Gs</p>
+          </div>
           <AlertCircle size={40} className="text-red-200" />
         </div>
       </div>
 
-      <div className="bg-white p-5 rounded-lg shadow-sm border border-gray-200 mb-6 flex flex-col md:flex-row gap-4">
+      <div className="bg-white p-5 rounded-xl border border-slate-200/80 mb-6 flex flex-col md:flex-row gap-4 relative z-10 shadow-sm">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-3 text-gray-400" size={18} />
-          <input type="text" placeholder="Buscar institución..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full pl-9 pr-4 py-2.5 border rounded-lg bg-gray-50 outline-none focus:ring-2 focus:ring-purple-500 text-sm" />
+          <Search className="absolute left-3 top-3.5 text-slate-400" size={18} />
+          <input 
+            type="text" 
+            placeholder="Buscar institución..." 
+            value={searchTerm} 
+            onChange={e => setSearchTerm(e.target.value)} 
+            className="w-full pl-9 pr-4 py-2.5 border border-slate-200 rounded-lg bg-slate-50 text-slate-800 placeholder-slate-400 outline-none focus:bg-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 text-sm transition-all" 
+          />
         </div>
-        <select value={filtroCategoria} onChange={e => setFiltroCategoria(e.target.value)} className="p-2.5 border rounded-lg bg-white outline-none focus:ring-2 focus:ring-purple-500 text-sm font-medium cursor-pointer">
+        <select 
+          value={filtroCategoria} 
+          onChange={e => setFiltroCategoria(e.target.value)} 
+          className="p-2.5 border border-slate-200 rounded-lg bg-white text-slate-700 outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 text-sm font-medium cursor-pointer transition-all"
+        >
           <option value="todos">Todas las Categorías</option>
           <option value="BUSINESS Micro">BUSINESS Micro</option>
           <option value="BUSINESS Pequeña">BUSINESS Pequeña</option>
@@ -145,7 +175,11 @@ const DashboardFacturacion = () => {
           <option value="Plan Premium">Plan Premium</option>
           <option value="Plan Premium Gold">Plan Premium Gold</option>
         </select>
-        <select value={filtroEstadoPago} onChange={e => setFiltroEstadoPago(e.target.value)} className="p-2.5 border rounded-lg bg-white outline-none focus:ring-2 focus:ring-purple-500 text-sm font-medium cursor-pointer">
+        <select 
+          value={filtroEstadoPago} 
+          onChange={e => setFiltroEstadoPago(e.target.value)} 
+          className="p-2.5 border border-slate-200 rounded-lg bg-white text-slate-700 outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 text-sm font-medium cursor-pointer transition-all"
+        >
           <option value="todos">Todos los Estados</option>
           <option value="al_dia">Al Día</option>
           <option value="vencidos">Vencidos (Rojo)</option>
@@ -155,41 +189,41 @@ const DashboardFacturacion = () => {
         </select>
       </div>
 
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-x-auto">
+      <div className="bg-white rounded-xl border border-slate-200/80 overflow-x-auto relative z-10 shadow-md">
         <table className="w-full text-left border-collapse">
           <thead>
-            <tr className="bg-gray-50 border-b border-gray-200 text-xs uppercase tracking-wider text-gray-600">
+            <tr className="bg-slate-50 border-b border-slate-200 text-xs uppercase tracking-wider text-slate-500">
               <th className="p-4 font-bold">Institución / Categoría</th>
               <th className="p-4 font-bold text-center">Estado Financiero</th>
               <th className="p-4 font-bold text-right">Saldo Pendiente</th>
               <th className="p-4 font-bold text-center">Avance Cuotas</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-slate-100 text-slate-750">
             {datosFiltrados.length === 0 ? (
-              <tr><td colSpan="4" className="text-center py-10 text-gray-500">No hay datos que coincidan con los filtros.</td></tr>
+              <tr><td colSpan="4" className="text-center py-10 text-slate-400 font-medium">No hay datos que coincidan con los filtros.</td></tr>
             ) : datosFiltrados.map(f => {
               const estado = getEstadoFinanciero(f);
               const pendiente = f.cuotas?.filter(c => c.estado === 'pendiente').reduce((s,c) => s + c.monto, 0) || 0;
               const pagadas = f.cuotas?.filter(c => c.estado === 'pagado').length || 0;
 
               return (
-                <tr key={f.id} className="hover:bg-gray-50 transition-colors">
+                <tr key={f.id} className="hover:bg-slate-50/50 transition-colors">
                   <td className="p-4">
-                    <p className="font-bold text-gray-900">{f.institucionNombre}</p>
-                    <span className="text-[10px] font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded uppercase mt-1 inline-block">{f.categoria || 'Sin Categoría'}</span>
+                    <p className="font-bold text-slate-800">{f.institucionNombre}</p>
+                    <span className="text-[10px] font-bold bg-slate-100 text-slate-500 px-2 py-0.5 rounded uppercase mt-1 inline-block">{f.categoria || 'Sin Categoría'}</span>
                   </td>
                   <td className="p-4 text-center">
                     <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold ${estado.clase}`}>
                       {estado.texto}
                     </span>
                   </td>
-                  <td className="p-4 text-right font-black text-gray-800">{pendiente.toLocaleString()} Gs</td>
+                  <td className="p-4 text-right font-black text-slate-850">{pendiente.toLocaleString()} Gs</td>
                   <td className="p-4 text-center">
-                    <div className="w-full max-w-[120px] mx-auto bg-gray-200 rounded-full h-2 mb-1">
-                      <div className="bg-emerald-500 h-2 rounded-full" style={{width: `${(pagadas/f.plazoMeses)*100}%`}}></div>
+                    <div className="w-full max-w-[120px] mx-auto bg-slate-200 rounded-full h-2 mb-1 overflow-hidden border border-slate-300/30 shadow-inner">
+                      <div className="bg-emerald-500 h-full rounded-full shadow-sm shadow-emerald-500/20" style={{width: `${(pagadas/f.plazoMeses)*100}%`}}></div>
                     </div>
-                    <span className="text-xs text-gray-500 font-bold">{pagadas} / {f.plazoMeses}</span>
+                    <span className="text-xs text-slate-500 font-bold">{pagadas} / {f.plazoMeses}</span>
                   </td>
                 </tr>
               )

@@ -25,9 +25,12 @@ import { useInstituciones } from '../hooks/useFirebase';
 import { auth, db } from '../firebase';
 import { doc, onSnapshot, collection, query, where, orderBy } from 'firebase/firestore';
 import { BotonComentarios } from './Comentarios';
+import { sileo } from './sileo';
+import { confirmar } from '../utils/confirmar';
 import { useContadorComentarios } from '../hooks/useFirebase';
 import { MessageCircle } from 'lucide-react';
 import * as XLSX from 'xlsx'; // ✨ IMPORT EXCEL OBLIGATORIO
+import { ResponsiveContainer, AreaChart, Area, Tooltip, XAxis } from 'recharts';
 
 const ModalAgregarInstitucion = ({ onClose, onSave }) => {
   const [nombre, setNombre] = useState('');
@@ -49,33 +52,37 @@ const ModalAgregarInstitucion = ({ onClose, onSave }) => {
   };
 
   const handleSubmit = async () => {
-    if (nombre.trim() && consultas > 0 && duracion > 0 && fechaInicio) {
-      setSaving(true);
-      const resultado = await onSave({ 
-        nombre: nombre.trim(), 
-        categoria,
-        consultas: parseInt(consultas), 
-        duracion: parseInt(duracion),
-        fechaInicio: fechaInicio,
-        montoTotal: parseFloat(montoTotal) || 0, // ✨ NUEVO
-        plazoMeses: parseInt(plazoMeses) || 1    // ✨ NUEVO
-      });
-      
-      if (resultado.success) {
-        setNombre('');
-        setCategoria('BUSINESS Micro');
-        setConsultas('');
-        setDuracion(6);
-        setFechaInicio('');
-        onClose();
-        alert(`Institución "${nombre.trim()}" creada exitosamente!`);
-      } else {
-        alert(`Error al guardar: ${resultado.error}`);
-      }
-      setSaving(false);
+    if (!nombre.trim()) return sileo.warning({ title: 'Campo requerido', description: 'Falta completar el Nombre de la Institución.' });
+    if (montoTotal === '' || parseFloat(montoTotal) < 0) return sileo.warning({ title: 'Campo requerido', description: 'Falta completar el Monto Total (puede ser 0 pero no vacío).' });
+    if (!consultas || parseInt(consultas) <= 0) return sileo.warning({ title: 'Campo requerido', description: 'Falta completar la Cantidad de Consultas Asignadas (mayor a 0).' });
+    if (!duracion || parseInt(duracion) <= 0) return sileo.warning({ title: 'Campo requerido', description: 'Falta seleccionar la Duración del Contrato.' });
+    if (!fechaInicio) return sileo.warning({ title: 'Campo requerido', description: 'Falta seleccionar la Fecha de Inicio del Contrato.' });
+
+    setSaving(true);
+    const resultado = await onSave({ 
+      nombre: nombre.trim(), 
+      categoria,
+      consultas: parseInt(consultas), 
+      duracion: parseInt(duracion),
+      fechaInicio: fechaInicio,
+      montoTotal: parseFloat(montoTotal) || 0,
+      plazoMeses: parseInt(plazoMeses) || 1
+    });
+    
+    if (resultado.success) {
+      setNombre('');
+      setCategoria('BUSINESS Micro');
+      setMontoTotal('');
+      setPlazoMeses('1');
+      setConsultas('');
+      setDuracion(6);
+      setFechaInicio('');
+      onClose();
+      sileo.success({ title: 'Institución creada', description: `"${nombre.trim()}" fue registrada exitosamente.` });
     } else {
-      alert("Por favor, complete todos los campos correctamente.");
+      sileo.error({ title: 'Error al guardar', description: resultado.error });
     }
+    setSaving(false);
   };
 
   return (
@@ -241,73 +248,69 @@ const ModalEditarInstitucion = ({ institucion, onClose, onSave }) => {
   const handleSubmit = async () => {
     if (nombre.trim() && consultas > 0 && duracion > 0) {
       if (estado === 'renovacion' && !nuevaFechaInicio) {
-        alert("Por favor, selecciona la nueva fecha de inicio para la renovación.");
+        sileo.warning({ title: 'Fecha requerida', description: 'Por favor, selecciona la nueva fecha de inicio para la renovación.' });
         return;
       }
 
       if (estado === 'renovacion' && !validarFecha(nuevaFechaInicio)) {
-        alert("La fecha seleccionada no es válida. Por favor, selecciona una fecha correcta.");
+        sileo.error({ title: 'Fecha inválida', description: 'La fecha seleccionada no es válida. Por favor, selecciona una fecha correcta.' });
         return;
       }
 
-      if (estado === 'renovacion') {
-        const confirmar = window.confirm(
-          "¿Estás seguro de que deseas renovar este contrato?\n\n" +
-          "• Se guardará el historial actual en el apartado Historial\n" +
-          "• Se iniciará un nuevo período de contrato\n" +
-          "• Los consumos mensuales se reiniciarán\n\n" +
-          "Esta acción no se puede deshacer."
-        );
-        
-        if (!confirmar) {
-          return;
-        }
-      }
+      const ejecutarGuardado = async () => {
+        setSaving(true);
+        try {
+          const datosActualizados = { 
+            nombre: nombre.trim(), 
+            categoria,
+            consultas: parseInt(consultas), 
+            duracion: parseInt(duracion),
+            estado: estado,
+            montoTotal: parseFloat(montoTotal) || 0,
+            plazoMeses: parseInt(plazoMeses) || 1
+          };
 
-      setSaving(true);
-      
-      try {
-        const datosActualizados = { 
-          nombre: nombre.trim(), 
-          categoria, // ✨ PASAR CATEGORIA
-          consultas: parseInt(consultas), 
-          duracion: parseInt(duracion),
-          estado: estado,
-          montoTotal: parseFloat(montoTotal) || 0, // ✨ NUEVO
-          plazoMeses: parseInt(plazoMeses) || 1    // ✨ NUEVO
-        };
+          if (estado === 'renovacion' && nuevaFechaInicio) {
+            const fechaFormateada = nuevaFechaInicio.includes('/') 
+              ? nuevaFechaInicio.split('/').reverse().join('-') 
+              : nuevaFechaInicio;
+            datosActualizados.nuevaFechaInicio = fechaFormateada;
+            if (comentarioRenovacion.trim()) {
+              datosActualizados.comentarioRenovacion = comentarioRenovacion.trim();
+            }
+          }
 
-        if (estado === 'renovacion' && nuevaFechaInicio) {
-          const fechaFormateada = nuevaFechaInicio.includes('/') 
-            ? nuevaFechaInicio.split('/').reverse().join('-') 
-            : nuevaFechaInicio;
-          datosActualizados.nuevaFechaInicio = fechaFormateada;
+          const resultado = await onSave(institucion.id, datosActualizados);
           
-          if (comentarioRenovacion.trim()) {
-            datosActualizados.comentarioRenovacion = comentarioRenovacion.trim();
-          }
-        }
-
-        const resultado = await onSave(institucion.id, datosActualizados);
-        
-        if (resultado.success) {
-          onClose();
-          if (estado === 'renovacion') {
-            alert(`Contrato renovado exitosamente!\n\nEl historial del período anterior está disponible en el apartado Historial.`);
+          if (resultado.success) {
+            onClose();
+            if (estado === 'renovacion') {
+              sileo.success({ title: 'Contrato renovado', description: 'El historial del período anterior está disponible en el apartado Historial.' });
+            } else {
+              sileo.success({ title: 'Institución actualizada', description: `"${nombre.trim()}" fue actualizada exitosamente.` });
+            }
           } else {
-            alert(`Institución "${nombre.trim()}" actualizada exitosamente!`);
+            sileo.error({ title: 'Error al actualizar', description: resultado.error });
           }
-        } else {
-          alert(`Error al actualizar: ${resultado.error}`);
+        } catch (error) {
+          console.error('Error en handleSubmit:', error);
+          sileo.error({ title: 'Error inesperado', description: error.message });
         }
-      } catch (error) {
-        console.error('Error en handleSubmit:', error);
-        alert(`Error inesperado: ${error.message}`);
+        setSaving(false);
+      };
+
+      if (estado === 'renovacion') {
+        confirmar(
+          'Renovar contrato',
+          'Se guardará el historial actual y se iniciará un nuevo período. Los consumos mensuales se reiniciarán. Esta acción no se puede deshacer.',
+          ejecutarGuardado
+        );
+      } else {
+        await ejecutarGuardado();
       }
-      
-      setSaving(false);
+
     } else {
-      alert("Por favor, complete todos los campos correctamente.");
+      sileo.warning({ title: 'Campos incompletos', description: 'Por favor, complete todos los campos correctamente.' });
     }
   };
 
@@ -563,7 +566,7 @@ const ModalConsumoMensual = ({ institucion, onClose, onSave }) => {
       const disponible = institucion.contrato.asignadas - institucion.contrato.consumidas;
       
       if (consumoInt > disponible) {
-        alert(`No puedes registrar más de ${disponible.toLocaleString()} consultas (disponibles).`);
+        sileo.warning({ title: 'Excede el límite', description: `No puedes registrar más de ${disponible.toLocaleString()} consultas disponibles.` });
         return;
       }
 
@@ -577,13 +580,13 @@ const ModalConsumoMensual = ({ institucion, onClose, onSave }) => {
         setMes('');
         setConsumo('');
         onClose();
-        alert(`Consumo de ${consumoInt.toLocaleString()} consultas registrado para ${mes}!`);
+        sileo.success({ title: 'Consumo registrado', description: `${consumoInt.toLocaleString()} consultas registradas para ${mes}.` });
       } else {
-        alert(`Error al registrar consumo: ${resultado.error}`);
+        sileo.error({ title: 'Error al registrar', description: resultado.error });
       }
       setSaving(false);
     } else {
-      alert("Por favor, complete todos los campos correctamente.");
+      sileo.warning({ title: 'Campos incompletos', description: 'Por favor, complete todos los campos correctamente.' });
     }
   };
 
@@ -657,9 +660,14 @@ const ModalConsumoMensual = ({ institucion, onClose, onSave }) => {
                   max={institucion.contrato.asignadas - institucion.contrato.consumidas}
                   disabled={saving}
                 />
-                <p className="text-sm text-gray-500 mt-1">
-                  Máximo disponible: {(institucion.contrato.asignadas - institucion.contrato.consumidas).toLocaleString()}
-                </p>
+                <div className="flex justify-between items-center mt-2 text-sm bg-gray-50 p-2 rounded border border-gray-100">
+                  <span className="text-gray-600">
+                    Máx. disponible: <span className="font-semibold text-gray-800">{(institucion.contrato.asignadas - institucion.contrato.consumidas).toLocaleString()}</span>
+                  </span>
+                  <span className={`font-bold ${(institucion.contrato.asignadas - institucion.contrato.consumidas - (parseInt(consumo) || 0)) < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                    Restante: {(institucion.contrato.asignadas - institucion.contrato.consumidas - (parseInt(consumo) || 0)).toLocaleString()}
+                  </span>
+                </div>
               </div>
             </div>
             <div className="mt-8 flex justify-end space-x-4">
@@ -708,7 +716,7 @@ const ModalEditarConsumoMes = ({ institucion, mesSeleccionado, onClose, onSave }
       const disponible = institucion.contrato.asignadas - consumoOtrosMeses;
       
       if (consumoInt > disponible) {
-        alert(`No puedes registrar más de ${disponible.toLocaleString()} consultas (disponibles considerando otros meses).`);
+        sileo.warning({ title: 'Excede el límite', description: `No puedes registrar más de ${disponible.toLocaleString()} consultas disponibles considerando otros meses.` });
         return;
       }
 
@@ -720,18 +728,24 @@ const ModalEditarConsumoMes = ({ institucion, mesSeleccionado, onClose, onSave }
       
       if (resultado.success) {
         onClose();
-        alert(`Consumo actualizado: ${consumoInt.toLocaleString()} consultas para ${mesSeleccionado}!`);
+        sileo.success({ title: 'Consumo actualizado', description: `${consumoInt.toLocaleString()} consultas registradas para ${mesSeleccionado}.` });
       } else {
-        alert(`Error al actualizar consumo: ${resultado.error}`);
+        sileo.error({ title: 'Error al actualizar', description: resultado.error });
       }
       setSaving(false);
     } else {
-      alert("Por favor, ingresa un valor válido.");
+      sileo.warning({ title: 'Valor inválido', description: 'Por favor, ingresa un valor válido.' });
     }
   };
 
   const fechaMes = new Date(mesSeleccionado + '-01T00:00:00');
   const nombreMes = fechaMes.toLocaleDateString('es-ES', { year: 'numeric', month: 'long' });
+
+  const consumoOtrosMeses = Object.entries(institucion.consumoPorMes || {})
+    .filter(([m]) => m !== mesSeleccionado)
+    .reduce((sum, [, valor]) => sum + valor, 0);
+  const maxDisponibleParaEditar = (institucion.contrato.asignadas || 0) - consumoOtrosMeses;
+  const restanteDinamico = maxDisponibleParaEditar - (parseInt(consumo) || 0);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -764,9 +778,14 @@ const ModalEditarConsumoMes = ({ institucion, mesSeleccionado, onClose, onSave }
               min="0"
               disabled={saving}
             />
-            <p className="text-sm text-gray-500 mt-1">
-              Total asignadas: {institucion.contrato.asignadas?.toLocaleString()}
-            </p>
+            <div className="flex justify-between items-center mt-2 text-sm bg-gray-50 p-2 rounded border border-gray-100">
+              <span className="text-gray-600">
+                Máx. disp: <span className="font-semibold text-gray-800">{maxDisponibleParaEditar.toLocaleString()}</span>
+              </span>
+              <span className={`font-bold ${restanteDinamico < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                Restante: {restanteDinamico.toLocaleString()}
+              </span>
+            </div>
           </div>
         </div>
 
@@ -818,6 +837,20 @@ const ModalHistorial = ({ institucion, onClose }) => {
           </div>
         ) : (
           <div className="space-y-6">
+            {/* LTV Acumulado (Punto 4) */}
+            <div className="bg-emerald-50 border border-emerald-200 p-6 rounded-lg flex flex-col md:flex-row items-center justify-between shadow-sm">
+              <div className="mb-2 md:mb-0">
+                <h3 className="text-emerald-800 font-bold text-lg flex items-center">
+                  <span className="bg-emerald-200 p-1.5 rounded-full mr-2">💰</span>
+                  Historial Financiero (LTV Acumulado)
+                </h3>
+                <p className="text-emerald-700 text-sm mt-1">Valor histórico total invertido por este cliente sumando todos sus períodos documentados.</p>
+              </div>
+              <div className="text-3xl font-black text-emerald-700 tracking-tight text-right drop-shadow-sm">
+                {((institucion.montoTotal || 0) + historial.reduce((sum, p) => sum + (p.montoTotal || institucion.montoTotal || 0), 0)).toLocaleString()} Gs
+              </div>
+            </div>
+
             {/* Período Actual */}
             <div className="bg-blue-50 p-6 rounded-lg border border-blue-200">
               <div className="flex items-center justify-between mb-4">
@@ -1086,7 +1119,7 @@ const ModalAuditoria = ({ institucion, onClose }) => {
       XLSX.utils.book_append_sheet(wb, ws, 'Auditoría');
       XLSX.writeFile(wb, `Auditoria_${institucion.nombre.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.xlsx`);
     } catch(e) {
-      alert("Error al exportar a excel.");
+      sileo.error({ title: 'Error al exportar', description: 'No se pudo generar el archivo Excel.' });
     }
   };
 
@@ -1175,6 +1208,7 @@ const Instituciones = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filtroEstado, setFiltroEstado] = useState('todos'); 
   const [filtroCategoria, setFiltroCategoria] = useState('todos'); // ✨ NUEVO FILTRO CATEGORIA
+  const [filtroAlerta, setFiltroAlerta] = useState('todas'); // ✨ NUEVO FILTRO ALERTA (Punto 1)
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 12;
 
@@ -1215,9 +1249,9 @@ const Instituciones = () => {
 
   React.useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, filtroEstado, filtroCategoria]);
+  }, [searchTerm, filtroEstado, filtroCategoria, filtroAlerta]);
 
-  // ✨ LOGICA DE FILTROS COMBINADOS (Buscador + Estado + Categoria)
+  // ✨ LOGICA DE FILTROS COMBINADOS (Buscador + Estado + Categoria + Alerta)
   const institucionesFiltradas = instituciones.filter((institucion) => {
     const searchLower = searchTerm.toLowerCase();
     const coincideBusqueda = institucion.nombre.toLowerCase().includes(searchLower);
@@ -1235,7 +1269,34 @@ const Instituciones = () => {
       else if (filtroCategoria !== 'Sin Categoría' && catReal !== filtroCategoria) coincideFiltroCategoria = false;
     }
 
-    return coincideBusqueda && coincideFiltroEstado && coincideFiltroCategoria;
+    let coincideFiltroAlerta = true;
+    if (filtroAlerta !== 'todas') {
+      const consumidas = institucion.contrato?.consumidas || 0;
+      const asignadas = institucion.contrato?.asignadas || 0;
+      const porcentaje = asignadas > 0 ? (consumidas / asignadas) * 100 : 0;
+      
+      let diasRestantes = 999;
+      if (institucion.contrato?.fechaFin && institucion.contrato.fechaFin !== 'N/A') {
+        let fechaFinObj;
+        if (institucion.contrato.fechaFin.includes('/')) {
+           const partes = institucion.contrato.fechaFin.split('/');
+           fechaFinObj = new Date(parseInt(partes[2]), parseInt(partes[1]) - 1, parseInt(partes[0]));
+        } else {
+           fechaFinObj = new Date(institucion.contrato.fechaFin);
+        }
+        const diffTime = fechaFinObj - new Date();
+        diasRestantes = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      }
+
+      if (filtroAlerta === 'consumo_alto') {
+        if (porcentaje < 75) coincideFiltroAlerta = false;
+      } else if (filtroAlerta === 'vencimiento_cercano') {
+        // Expirado (0 o menos) o en los proximos 15 dias, PERO excluir los que YA fueron pasados a estado vencido
+        if (diasRestantes > 15 || institucion.estado === 'vencido' || institucion.estado === 'no_renovada') coincideFiltroAlerta = false;
+      }
+    }
+
+    return coincideBusqueda && coincideFiltroEstado && coincideFiltroCategoria && coincideFiltroAlerta;
   });
 
   const indexOfLastItem = currentPage * itemsPerPage;
@@ -1264,37 +1325,38 @@ const Instituciones = () => {
   const handleEliminarConsumoMensual = async (institucion, mes) => {
     const consumo = institucion.consumoPorMes[mes];
     const nombreMes = new Date(mes + '-01T00:00:00').toLocaleDateString('es-ES', { year: 'numeric', month: 'long' });
-    
-    if (window.confirm(
-      `¿Estás seguro de que quieres eliminar el consumo de ${nombreMes}?\n\n` +
-      `• Institución: ${institucion.nombre}\n` +
-      `• Consumo a eliminar: ${consumo.toLocaleString()} consultas\n` +
-      `• Esta acción actualizará el total de consultas consumidas\n\n` +
-      `Esta acción no se puede deshacer.`
-    )) {
-      const resultado = await eliminarConsumoMensual(institucion.id, mes);
-      if (resultado.success) {
-        alert(`Consumo de ${nombreMes} eliminado exitosamente!\n\nSe han restado ${consumo.toLocaleString()} consultas del total.`);
-      } else {
-        alert(`Error al eliminar consumo: ${resultado.error}`);
+    confirmar(
+      `Eliminar consumo de ${nombreMes}`,
+      `Se eliminarán ${consumo.toLocaleString()} consultas registradas para "${institucion.nombre}". Esta acción no se puede deshacer.`,
+      async () => {
+        const resultado = await eliminarConsumoMensual(institucion.id, mes);
+        if (resultado.success) {
+          sileo.success({ title: 'Consumo eliminado', description: `Consumo de ${nombreMes} eliminado. Se restaron ${consumo.toLocaleString()} consultas.` });
+        } else {
+          sileo.error({ title: 'Error al eliminar consumo', description: resultado.error });
+        }
       }
-    }
+    );
   };
 
   const handleDelete = async (id, nombre) => {
-    if (window.confirm(`¿Estás seguro de que quieres eliminar "${nombre}"?`)) {
-      const resultado = await eliminarInstitucion(id);
-      if (resultado.success) {
-        alert(`Institución "${nombre}" eliminada exitosamente!`);
-      } else {
-        alert(`Error al eliminar: ${resultado.error}`);
+    confirmar(
+      'Eliminar institución',
+      `¿Estás seguro de que quieres eliminar "${nombre}"? Esta acción no se puede deshacer.`,
+      async () => {
+        const resultado = await eliminarInstitucion(id);
+        if (resultado.success) {
+          sileo.success({ title: 'Institución eliminada', description: `"${nombre}" fue eliminada exitosamente.` });
+        } else {
+          sileo.error({ title: 'Error al eliminar', description: resultado.error });
+        }
       }
-    }
+    );
   };
 
   // ✨ NUEVA FUNCION: DESCARGAR EXCEL DE LOS FILTROS ACTUALES
   const exportarExcelFiltrado = () => {
-    if (institucionesFiltradas.length === 0) return alert("No hay datos para exportar con estos filtros.");
+    if (institucionesFiltradas.length === 0) return sileo.warning({ title: 'Sin datos', description: 'No hay datos para exportar con estos filtros.' });
     
     const data = institucionesFiltradas.map((inst, index) => ({
       'Nro': index + 1,
@@ -1321,10 +1383,10 @@ const Instituciones = () => {
 
   if (loading && instituciones.length === 0) {
     return (
-      <div className="p-6 sm:p-10 bg-gray-50 min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 size={48} className="animate-spin text-blue-600 mx-auto mb-4" />
-          <p className="text-gray-600">Cargando instituciones desde Firebase...</p>
+      <div className="p-6 sm:p-10 bg-slate-50 min-h-screen flex items-center justify-center relative overflow-hidden grid-overlay">
+        <div className="text-center relative z-10">
+          <Loader2 size={48} className="animate-spin text-brand-500 mx-auto mb-4" />
+          <p className="text-slate-500 font-medium">Cargando instituciones desde Firebase...</p>
         </div>
       </div>
     );
@@ -1332,13 +1394,13 @@ const Instituciones = () => {
 
   if (error) {
     return (
-      <div className="p-6 sm:p-10 bg-gray-50 min-h-screen flex items-center justify-center">
-        <div className="text-center bg-red-50 p-8 rounded-lg border border-red-200">
-          <p className="text-red-600 font-medium">Error al conectar con Firebase</p>
-          <p className="text-red-500 text-sm mt-2">{error}</p>
+      <div className="p-6 sm:p-10 bg-slate-50 min-h-screen flex items-center justify-center relative overflow-hidden grid-overlay">
+        <div className="text-center bg-red-50 p-8 rounded-2xl border border-red-200 max-w-md shadow-lg relative z-10 backdrop-blur-md">
+          <p className="text-red-800 font-bold text-lg mb-2">Error al conectar con Firebase</p>
+          <p className="text-red-655 text-sm">{error}</p>
           <button 
             onClick={() => window.location.reload()} 
-            className="mt-4 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
+            className="mt-6 bg-red-600 text-white px-6 py-2.5 rounded-xl hover:bg-red-700 flex items-center justify-center mx-auto font-bold transition-all active:scale-95 shadow-lg shadow-red-600/10"
           >
             Reintentar
           </button>
@@ -1348,29 +1410,33 @@ const Instituciones = () => {
   }
 
   return (
-    <div className="p-6 sm:p-10 bg-gray-50 min-h-screen">
-      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center mb-8 space-y-4 xl:space-y-0">
+    <div className="p-6 sm:p-10 bg-slate-50 min-h-screen relative overflow-hidden grid-overlay">
+      {/* Background Glow Spots */}
+      <div className="absolute top-10 left-10 w-96 h-96 rounded-full blur-[150px] glow-spot-orange pointer-events-none"></div>
+      <div className="absolute bottom-10 right-10 w-96 h-96 rounded-full blur-[150px] glow-spot-purple pointer-events-none"></div>
+
+      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center mb-8 space-y-4 xl:space-y-0 relative z-10">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 flex items-center">
-            <Building size={32} className="mr-3 text-blue-700"/>
+          <h1 className="text-3xl font-extrabold text-slate-800 flex items-center tracking-tight">
+            <Building size={32} className="mr-3 text-brand-500"/>
             Gestión de Instituciones
           </h1>
-          <p className="text-cyan-700 font-medium mt-1">
+          <p className="text-slate-500 font-medium mt-1">
             {institucionesFiltradas.length} resultados encontrados
           </p>
         </div>
         
         {/* BARRA DE HERRAMIENTAS REESTRUCTURADA */}
-        <div className="flex flex-col md:flex-row items-center space-y-3 md:space-y-0 md:space-x-3 w-full xl:w-auto">
+        <div className="flex flex-col md:flex-row items-center space-y-3 md:space-y-0 md:space-x-3 w-full xl:w-auto relative z-10">
           
           <div className="relative w-full md:w-56">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
-            <input type="text" placeholder="Buscar institución..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-9 pr-4 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 shadow-sm text-sm" />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" size={18} />
+            <input type="text" placeholder="Buscar institución..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-9 pr-4 py-2.5 border border-slate-200 rounded-xl bg-white text-slate-800 placeholder-slate-400 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 shadow-sm text-sm transition-all" />
           </div>
 
           <div className="relative w-full md:w-44">
-            <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
-            <select value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)} className="w-full pl-9 pr-8 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 bg-white text-sm font-medium shadow-sm appearance-none cursor-pointer">
+            <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" size={18} />
+            <select value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)} className="w-full pl-9 pr-8 py-2.5 border border-slate-200 rounded-xl bg-white text-slate-700 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 text-sm font-medium shadow-sm appearance-none cursor-pointer transition-all">
               <option value="todos">Todos los Estados</option>
               <option value="activo">Solo Activos</option>
               <option value="pendiente">Solo Pendientes</option>
@@ -1380,8 +1446,8 @@ const Instituciones = () => {
 
           {/* ✨ NUEVO FILTRO CATEGORÍA */}
           <div className="relative w-full md:w-56">
-            <Tag className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
-            <select value={filtroCategoria} onChange={(e) => setFiltroCategoria(e.target.value)} className="w-full pl-9 pr-8 py-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 bg-white text-sm font-medium shadow-sm appearance-none cursor-pointer">
+            <Tag className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" size={18} />
+            <select value={filtroCategoria} onChange={(e) => setFiltroCategoria(e.target.value)} className="w-full pl-9 pr-8 py-2.5 border border-slate-200 rounded-xl bg-white text-slate-700 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 text-sm font-medium shadow-sm appearance-none cursor-pointer transition-all">
               <option value="todos">Todas las Categorías</option>
               <option value="BUSINESS Micro">BUSINESS Micro</option>
               <option value="BUSINESS Pequeña">BUSINESS Pequeña</option>
@@ -1392,14 +1458,31 @@ const Instituciones = () => {
             </select>
           </div>
           
+          {/* ✨ BOTONES DE ALERTA RÁPIDA */}
+          <div className="flex space-x-2 w-full md:w-auto overflow-hidden">
+            <button
+              onClick={() => setFiltroAlerta(filtroAlerta === 'consumo_alto' ? 'todas' : 'consumo_alto')}
+              className={`flex-1 md:flex-none flex items-center px-3 py-2.5 rounded-xl text-sm font-bold border transition-all shadow-sm whitespace-nowrap active:scale-95 ${filtroAlerta === 'consumo_alto' ? 'bg-red-100 border-red-200 text-red-800' : 'bg-white border border-slate-200 text-slate-655 hover:bg-slate-50 hover:text-slate-800'}`}
+              title="Filtrar instituciones con uso avanzado (>= 75%)"
+            >
+              ⚠️ <span className="hidden md:inline ml-1 font-extrabold text-xs tracking-wider">ALTO CONSUMO</span>
+            </button>
+            <button
+              onClick={() => setFiltroAlerta(filtroAlerta === 'vencimiento_cercano' ? 'todas' : 'vencimiento_cercano')}
+              className={`flex-1 md:flex-none flex items-center px-3 py-2.5 rounded-xl text-sm font-bold border transition-all shadow-sm whitespace-nowrap active:scale-95 ${filtroAlerta === 'vencimiento_cercano' ? 'bg-brand-100 border-brand-200 text-brand-850' : 'bg-white border border-slate-200 text-slate-655 hover:bg-slate-50 hover:text-slate-850'}`}
+              title="Filtrar instituciones que vencen en 15 días o menos"
+            >
+              ⏱️ <span className="hidden md:inline ml-1 font-extrabold text-xs tracking-wide">POR VENCER</span>
+            </button>
+          </div>
           <div className="flex space-x-2 w-full md:w-auto">
             {/* ✨ BOTON EXCEL FILTRADO */}
-            <button onClick={exportarExcelFiltrado} className="flex-1 md:flex-none bg-emerald-600 text-white px-4 py-2.5 rounded-lg font-bold flex items-center justify-center hover:bg-emerald-700 shadow-sm transition-colors text-sm" title="Descargar Excel del listado filtrado">
+            <button onClick={exportarExcelFiltrado} className="flex-1 md:flex-none bg-emerald-600 text-white px-4 py-2.5 rounded-xl font-bold flex items-center justify-center hover:bg-emerald-700 shadow-lg shadow-emerald-600/10 transition-all active:scale-95 text-sm" title="Descargar Excel del listado filtrado">
               <FileSpreadsheet size={18} className="md:mr-2"/> <span className="hidden md:inline">Excel</span>
             </button>
             
             {canAdd && (
-              <button onClick={() => setShowModal(true)} className="flex-1 md:flex-none bg-blue-600 text-white px-4 py-2.5 rounded-lg font-bold flex items-center justify-center hover:bg-blue-700 shadow-sm transition-colors whitespace-nowrap text-sm">
+              <button onClick={() => setShowModal(true)} className="flex-1 md:flex-none bg-brand-600 text-white px-4 py-2.5 rounded-xl font-bold flex items-center justify-center hover:bg-brand-700 shadow-lg shadow-brand-500/10 transition-all active:scale-95 whitespace-nowrap text-sm">
                 <PlusCircle size={18} className="md:mr-2"/> <span className="hidden md:inline">Nuevo</span>
               </button>
             )}
@@ -1408,302 +1491,305 @@ const Instituciones = () => {
         </div>
       </div>
       
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
-          <div className="flex items-center">
-            <Users className="text-blue-600 mr-3" size={24} />
-            <div>
-              <p className="text-sm text-gray-500">Total Instituciones</p>
-              <p className="text-2xl font-bold text-gray-800">{instituciones.length}</p>
-            </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8 relative z-10">
+        <div className="bg-white p-6 rounded-xl border border-slate-200/80 flex items-center shadow-md">
+          <Users className="text-brand-500 mr-3" size={24} />
+          <div>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-0.5">Total Instituciones</p>
+            <p className="text-2xl font-black text-slate-800">{instituciones.length}</p>
           </div>
         </div>
         
-        <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
-          <div className="flex items-center">
-            <Calendar className="text-green-600 mr-3" size={24} />
-            <div>
-              <p className="text-sm text-gray-500">Contratos Activos</p>
-              <p className="text-2xl font-bold text-gray-800">
-                {instituciones.filter(inst => inst.estado === 'activo' || !inst.estado).length}
-              </p>
-            </div>
+        <div className="bg-white p-6 rounded-xl border border-slate-200/80 flex items-center shadow-md">
+          <Calendar className="text-emerald-500 mr-3" size={24} />
+          <div>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-0.5">Contratos Activos</p>
+            <p className="text-2xl font-black text-slate-800">
+              {instituciones.filter(inst => inst.estado === 'activo' || !inst.estado).length}
+            </p>
           </div>
         </div>
         
-        <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
-          <div className="flex items-center">
-            <Clock className="text-yellow-600 mr-3" size={24} />
-            <div>
-              <p className="text-sm text-gray-500">Instituciones Pendientes</p>
-              <p className="text-2xl font-bold text-gray-800">
-                {instituciones.filter(inst => inst.estado === 'pendiente').length}
-              </p>
-            </div>
+        <div className="bg-white p-6 rounded-xl border border-slate-200/80 flex items-center shadow-md">
+          <Clock className="text-amber-500 mr-3" size={24} />
+          <div>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-0.5">Instituciones Pendientes</p>
+            <p className="text-2xl font-black text-slate-800">
+              {instituciones.filter(inst => inst.estado === 'pendiente').length}
+            </p>
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
-          <div className="flex items-center">
-            <X className="text-red-600 mr-3" size={24} />
-            <div>
-              <p className="text-sm text-gray-500">Vencido - No Renovado</p>
-              <p className="text-2xl font-bold text-gray-800">
-                {instituciones.filter(inst => inst.estado === 'vencido').length}
-              </p>
-            </div>
+        <div className="bg-white p-6 rounded-xl border border-slate-200/80 flex items-center shadow-md">
+          <X className="text-red-500 mr-3" size={24} />
+          <div>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-0.5">Vencido - No Renovado</p>
+            <p className="text-2xl font-black text-slate-800">
+              {instituciones.filter(inst => inst.estado === 'vencido').length}
+            </p>
           </div>
         </div>
       </div>
 
-      <div className="space-y-4">
+      <div className="relative z-10">
         {institucionesFiltradas.length === 0 ? (
           searchTerm || filtroEstado !== 'todos' || filtroCategoria !== 'todos' ? (
-            <div className="bg-white p-8 rounded-lg shadow-md text-center text-gray-500 border border-gray-200">
-              <Search size={48} className="mx-auto mb-4 text-gray-300" />
-              <p className="text-lg font-medium mb-2">No se encontraron resultados</p>
-              <p>No hay instituciones que coincidan con los filtros aplicados.</p>
+            <div className="bg-white p-12 rounded-2xl text-center text-slate-500 border border-slate-200/80 shadow-md">
+              <Search size={48} className="mx-auto mb-4 text-slate-300" />
+              <p className="text-lg font-bold text-slate-800 mb-2">No se encontraron resultados</p>
+              <p className="text-slate-500">No hay instituciones que coincidan con los filtros aplicados.</p>
               <button
                 onClick={() => {
                   setSearchTerm('');
                   setFiltroEstado('todos');
                   setFiltroCategoria('todos');
                 }}
-                className="mt-4 text-blue-600 hover:text-blue-800 font-medium bg-blue-50 px-4 py-2 rounded-lg"
+                className="mt-6 text-brand-600 hover:text-brand-700 font-bold bg-brand-50 border border-brand-100 hover:bg-brand-100 px-5 py-2.5 rounded-xl transition-all active:scale-95 text-sm"
               >
                 Limpiar filtros
               </button>
             </div>
           ) : (
-            <div className="bg-white p-8 rounded-lg shadow-md text-center text-gray-500 border border-gray-200">
-              <Building size={48} className="mx-auto mb-4 text-gray-300" />
-              <p className="text-lg font-medium mb-2">No hay instituciones registradas</p>
-              <p>Haz clic en "Nuevo" para comenzar.</p>
+            <div className="bg-white p-12 rounded-2xl text-center text-slate-500 border border-slate-200/80 shadow-md">
+              <Building size={48} className="mx-auto mb-4 text-slate-300" />
+              <p className="text-lg font-bold text-slate-800 mb-2">No hay instituciones registradas</p>
+              <p className="text-slate-500">Haz clic en "Nuevo" para comenzar.</p>
             </div>
           )
         ) : (
-          currentItems.map((institucion) => {
-          let estadoBadge = 'bg-green-100 text-green-800 border border-green-200';
-          let estadoTexto = 'Activo';
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+            {currentItems.map((institucion) => {
+            let estadoBadge = 'bg-emerald-100 text-emerald-850 border border-emerald-200';
+            let estadoTexto = 'Activo';
+            let accentColor = 'bg-emerald-500';
 
-          switch(institucion.estado) {
-            case 'pendiente':
-              estadoBadge = 'bg-yellow-100 text-yellow-800 border border-yellow-200';
-              estadoTexto = 'Pendiente';
-              break;
-            case 'vencido':
-              estadoBadge = 'bg-red-100 text-red-800 border border-red-200';
-              estadoTexto = 'Vencido - No Renovado';
-              break;
-            case 'renovacion':
-              estadoBadge = 'bg-blue-100 text-blue-800 border border-blue-200';
-              estadoTexto = 'En Renovación';
-              break;
-            default:
-              estadoBadge = 'bg-green-100 text-green-800 border border-green-200';
-              estadoTexto = 'Activo';
-          }
+            switch(institucion.estado) {
+              case 'pendiente':
+                estadoBadge = 'bg-yellow-100 text-yellow-800 border border-yellow-200';
+                estadoTexto = 'Pendiente';
+                accentColor = 'bg-yellow-500';
+                break;
+              case 'vencido':
+                estadoBadge = 'bg-red-100 text-red-800 border border-red-200';
+                estadoTexto = 'Vencido - No Renovado';
+                accentColor = 'bg-red-500';
+                break;
+              case 'renovacion':
+                estadoBadge = 'bg-blue-100 text-blue-800 border border-blue-200';
+                estadoTexto = 'En Renovación';
+                accentColor = 'bg-blue-500';
+                break;
+              default:
+                estadoBadge = 'bg-emerald-100 text-emerald-850 border border-emerald-200';
+                estadoTexto = 'Activo';
+                accentColor = 'bg-emerald-500';
+            }
 
-          // ✨ COLOR DEL BADGE DE CATEGORÍA
-          let catColor = 'bg-slate-100 text-slate-700 border-slate-200';
-          if(institucion.categoria?.includes('BUSINESS')) catColor = 'bg-indigo-100 text-indigo-800 border-indigo-200';
-          if(institucion.categoria?.includes('Premium')) catColor = 'bg-amber-100 text-amber-800 border-amber-200';
+            // ✨ COLOR DEL BADGE DE CATEGORÍA
+            let catColor = 'bg-slate-100 text-slate-700 border-slate-200';
+            if(institucion.categoria?.includes('BUSINESS')) catColor = 'bg-indigo-100 text-indigo-800 border-indigo-200';
+            if(institucion.categoria?.includes('Premium')) catColor = 'bg-amber-100 text-amber-800 border-amber-250';
 
-            return (
-              <div key={institucion.id} className="bg-white p-6 rounded-lg shadow-md border border-gray-200 hover:border-blue-300 transition-colors">
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4">
-                  <div>
-                    <div className="flex items-center flex-wrap gap-2 mb-2">
-                      <h2 className="text-xl font-bold text-gray-900">{institucion.nombre}</h2>
-                      
-                      {/* ✨ BADGE CATEGORÍA EN LA TARJETA */}
-                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border shadow-sm ${catColor}`}>
-                        {institucion.categoria || 'Sin Categoría'}
-                      </span>
+            // Cálculo de porcentaje de uso
+            const asignadas = institucion.contrato?.asignadas || 0;
+            const consumidas = institucion.contrato?.consumidas || 0;
+            const restantes = asignadas - consumidas;
+            const porcentajeUso = asignadas > 0 ? Math.min((consumidas / asignadas) * 100, 100) : 0;
+            const barColor = porcentajeUso >= 90 ? 'bg-red-500' : porcentajeUso >= 70 ? 'bg-amber-500' : 'bg-emerald-500';
 
-                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${estadoBadge}`}>
-                        {estadoTexto}
-                      </span>
-                    </div>
-                    <p className="text-sm text-gray-500 font-medium">
-                      Inicio: <span className="text-gray-700">{institucion.contrato?.fechaInicio || institucion.fechaCreacion}</span> | 
-                      Vence: <span className="text-gray-700">{institucion.contrato?.fechaFin}</span> |
-                      Plazo Pago: <span className="text-gray-700">{institucion.plazoMeses || 1} meses</span>
-                    </p>
-                    {institucion.historial && institucion.historial.length > 0 && (
-                      <p className="text-xs text-blue-600 mt-1">
-                        {institucion.historial.length} período(s) anterior(es) en historial
-                      </p>
-                    )}
-                  </div>
+              return (
+                <div key={institucion.id} className="bg-white rounded-xl border border-slate-200/80 hover:border-brand-500/30 hover:shadow-lg transition-all duration-300 flex flex-col overflow-hidden">
                   
-                  <div className="flex flex-wrap gap-2 mt-3 md:mt-0">
-                    
-                    {canConsume && (
-                      <button 
-                        onClick={() => {
-                          setInstitucionSeleccionada(institucion);
-                          setShowConsumoModal(true);
-                        }}
-                        className="bg-green-50 text-green-700 hover:bg-green-600 hover:text-white p-2.5 rounded-lg border border-green-200 hover:border-green-600 transition-all shadow-sm"
-                        title="Registrar consumo mensual"
-                        disabled={loading}
-                      >
-                        <Plus size={18} />
-                      </button>
-                    )}
-                    
-                    {canComment && (
-                      <BotonComentarios 
-                        institucion={institucion}
-                        comentariosCount={0}
-                      />
-                    )}
+                  {/* Accent bar superior por estado */}
+                  <div className={`h-1 w-full ${accentColor}`} />
 
-                    {canEdit && (
-                      <button 
-                        onClick={() => {
-                          setInstitucionSeleccionada(institucion);
-                          setShowEditModal(true);
-                        }}
-                        className="bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white p-2.5 rounded-lg border border-blue-200 hover:border-blue-600 transition-all shadow-sm"
-                        title="Editar institución"
-                        disabled={loading}
-                      >
-                        <Edit3 size={18} />
-                      </button>
-                    )}
-
-                    {canHistory && (
-                      <button 
-                        onClick={() => {
-                          setInstitucionSeleccionada(institucion);
-                          setShowHistorialModal(true);
-                        }}
-                        className="bg-purple-50 text-purple-700 hover:bg-purple-600 hover:text-white p-2.5 rounded-lg border border-purple-200 hover:border-purple-600 transition-all shadow-sm"
-                        title="Ver historial de períodos"
-                        disabled={loading}
-                      >
-                        <History size={18} />
-                      </button>
-                    )}
-
-                    {(userRol === 'admin' || userRol === 'contabilidad') && (
-                      <button 
-                        onClick={() => { setInstitucionSeleccionada(institucion); setShowAuditoriaModal(true); }}
-                        className="bg-slate-50 text-slate-700 hover:bg-slate-700 hover:text-white p-2.5 rounded-lg border border-slate-200 hover:border-slate-700 transition-all shadow-sm" 
-                        title="Ver Auditoría de Cambios"
-                        disabled={loading}
-                      >
-                        <ClipboardList size={18} />
-                      </button>
-                    )}
-
-                    {canDelete && (
-                      <button 
-                        onClick={() => handleDelete(institucion.id, institucion.nombre)}
-                        className="bg-red-50 text-red-700 hover:bg-red-600 hover:text-white p-2.5 rounded-lg border border-red-200 hover:border-red-600 transition-all shadow-sm"
-                        title="Eliminar institución"
-                        disabled={loading}
-                      >
-                        <Trash2 size={18} />
-                      </button>
-                    )}
-
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center bg-slate-50 p-4 rounded-xl border border-slate-100">
-                  <div>
-                    <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Consultas Asignadas</p>
-                    <p className="text-2xl font-black text-blue-600">
-                      {(institucion.contrato?.asignadas || 0).toLocaleString()}
-                    </p>
-                  </div>
-                  <div className="border-t sm:border-t-0 sm:border-l border-slate-200 pt-3 sm:pt-0">
-                    <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Consumidas</p>
-                    <p className="text-2xl font-black text-gray-800">
-                      {(institucion.contrato?.consumidas || 0).toLocaleString()}
-                    </p>
-                  </div>
-                  <div className="border-t sm:border-t-0 sm:border-l border-slate-200 pt-3 sm:pt-0">
-                    <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Restantes</p>
-                    <p className="text-2xl font-black text-emerald-600">
-                      {((institucion.contrato?.asignadas || 0) - (institucion.contrato?.consumidas || 0)).toLocaleString()}
-                    </p>
-                  </div>
-                </div>
-
-                {institucion.consumoPorMes && Object.keys(institucion.consumoPorMes).length > 0 && (
-                  <div className="mt-6 pt-4 border-t border-gray-200">
-                    <h4 className="text-lg font-bold text-slate-800 mb-4 flex items-center">
-                      <BarChart2 className="mr-2 text-orange-500" size={20} />
-                      Consumo registrado por mes:
-                    </h4>
-                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
-                      {Object.entries(institucion.consumoPorMes)
-                        .sort(([a], [b]) => a.localeCompare(b))
-                        .map(([mes, consumo]) => (
-                        <div 
-                          key={mes} 
-                          className="bg-gradient-to-br from-white to-orange-50 p-4 rounded-xl border-2 border-orange-100 shadow-sm text-center relative group hover:border-orange-300 transition-all duration-200"
-                        >
-                          <div className="text-xs font-bold text-orange-800 mb-1 uppercase tracking-widest opacity-80">
-                            {new Date(mes + '-01T00:00:00').toLocaleDateString('es-ES', { year: 'numeric', month: 'short' })}
-                          </div>
-                          
-                          <div className="text-3xl md:text-4xl font-black text-orange-600 drop-shadow-sm leading-none my-2">
-                            {consumo.toLocaleString()}
-                          </div>
-                          
-                          <div className="text-[10px] font-bold text-orange-500 uppercase tracking-widest">
-                            Consultas
-                          </div>
-
-                          {(canEdit || canDelete) && (
-                            <div className="absolute top-2 right-2 flex space-x-1 opacity-0 group-hover:opacity-100 transition-all duration-200">
-                              {canEdit && (
-                                <button
-                                  onClick={() => {
-                                    setInstitucionSeleccionada(institucion);
-                                    setMesSeleccionadoParaEditar(mes);
-                                    setShowEditConsumoModal(true);
-                                  }}
-                                  className="bg-blue-100 text-blue-600 hover:text-blue-800 hover:bg-blue-200 p-1.5 rounded-md shadow-sm transition-all duration-200"
-                                  title="Editar consumo del mes"
-                                  disabled={loading}
-                                >
-                                  <Edit3 size={14} />
-                                </button>
-                              )}
-                              {canDelete && (
-                                <button
-                                  onClick={() => handleEliminarConsumoMensual(institucion, mes)}
-                                  className="bg-red-100 text-red-600 hover:text-red-800 hover:bg-red-200 p-1.5 rounded-md shadow-sm transition-all duration-200"
-                                  title="Eliminar consumo del mes"
-                                  disabled={loading}
-                                >
-                                  <Trash2 size={14} />
-                                </button>
-                              )}
-                            </div>
-                          )}
+                  <div className="p-5 flex flex-col flex-1">
+                    {/* Header: nombre + badges + acciones */}
+                    <div className="flex items-start justify-between gap-3 mb-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center flex-wrap gap-1.5 mb-1.5">
+                          <h2 className="text-base font-extrabold text-slate-800 uppercase tracking-tight leading-tight">{institucion.nombre}</h2>
                         </div>
-                      ))}
+                        <div className="flex flex-wrap gap-1.5 mb-2">
+                          {/* ✨ BADGE CATEGORÍA EN LA TARJETA */}
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-bold border shadow-sm ${catColor}`}>
+                            {institucion.categoria || 'Sin Categoría'}
+                          </span>
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-bold border ${estadoBadge}`}>
+                            {estadoTexto}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-500 font-medium leading-relaxed">
+                          Inicio: <span className="text-slate-700 font-semibold">{institucion.contrato?.fechaInicio || institucion.fechaCreacion}</span>{' '}|
+                          {' '}Vence: <span className="text-slate-700 font-semibold">{institucion.contrato?.fechaFin}</span>{' '}|
+                          {' '}Plazo: <span className="text-slate-700 font-semibold">{institucion.plazoMeses || 1} {(institucion.plazoMeses || 1) === 1 ? 'mes' : 'meses'}</span>
+                        </p>
+                        {institucion.historial && institucion.historial.length > 0 && (
+                          <p className="text-xs text-brand-700 mt-1 font-medium">
+                            📋 {institucion.historial.length} período(s) anterior(es) en historial
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Botones de acción */}
+                      <div className="flex flex-wrap gap-1.5 shrink-0">
+                        {canConsume && (
+                          <button 
+                            onClick={() => { setInstitucionSeleccionada(institucion); setShowConsumoModal(true); }}
+                            className="bg-emerald-50 text-emerald-700 hover:bg-emerald-600 hover:text-white p-2 rounded-lg border border-emerald-250 hover:border-emerald-600 transition-all shadow-sm active:scale-95"
+                            title="Registrar consumo mensual" disabled={loading}
+                          >
+                            <Plus size={16} />
+                          </button>
+                        )}
+                        {canComment && (
+                          <BotonComentarios institucion={institucion} comentariosCount={0} />
+                        )}
+                        {canEdit && (
+                          <button 
+                            onClick={() => { setInstitucionSeleccionada(institucion); setShowEditModal(true); }}
+                            className="bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white p-2 rounded-lg border border-blue-200 transition-all shadow-sm active:scale-95"
+                            title="Editar institución" disabled={loading}
+                          >
+                            <Edit3 size={16} />
+                          </button>
+                        )}
+                        {canHistory && (
+                          <button 
+                            onClick={() => { setInstitucionSeleccionada(institucion); setShowHistorialModal(true); }}
+                            className="bg-purple-50 text-purple-700 hover:bg-purple-600 hover:text-white p-2 rounded-lg border border-purple-200 transition-all shadow-sm active:scale-95"
+                            title="Ver historial de períodos" disabled={loading}
+                          >
+                            <History size={16} />
+                          </button>
+                        )}
+                        {(userRol === 'admin' || userRol === 'contabilidad') && (
+                          <button 
+                            onClick={() => { setInstitucionSeleccionada(institucion); setShowAuditoriaModal(true); }}
+                            className="bg-slate-100 text-slate-700 hover:bg-slate-700 hover:text-white p-2 rounded-lg border border-slate-200 transition-all shadow-sm active:scale-95" 
+                            title="Ver Auditoría de Cambios" disabled={loading}
+                          >
+                            <ClipboardList size={16} />
+                          </button>
+                        )}
+                        {canDelete && (
+                          <button 
+                            onClick={() => handleDelete(institucion.id, institucion.nombre)}
+                            className="bg-red-50 text-red-700 hover:bg-red-600 hover:text-white p-2 rounded-lg border border-red-200 transition-all shadow-sm active:scale-95"
+                            title="Eliminar institución" disabled={loading}
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        )}
+                      </div>
                     </div>
+
+                    {/* Stats de consultas */}
+                    <div className="grid grid-cols-3 gap-3 text-center bg-slate-50 p-3 rounded-xl border border-slate-100 mb-3">
+                      <div>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Asignadas</p>
+                        <p className="text-xl font-black text-blue-600">{asignadas.toLocaleString()}</p>
+                      </div>
+                      <div className="border-l border-slate-200">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Consumidas</p>
+                        <p className="text-xl font-black text-slate-800">{consumidas.toLocaleString()}</p>
+                      </div>
+                      <div className="border-l border-slate-200">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Restantes</p>
+                        <p className="text-xl font-black text-emerald-600">{restantes.toLocaleString()}</p>
+                      </div>
+                    </div>
+
+                    {/* Barra de progreso de uso */}
+                    <div className="mb-3">
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Uso del contrato</span>
+                        <span className={`text-xs font-bold ${
+                          porcentajeUso >= 90 ? 'text-red-600' : porcentajeUso >= 70 ? 'text-amber-600' : 'text-emerald-600'
+                        }`}>{porcentajeUso.toFixed(1)}%</span>
+                      </div>
+                      <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden border border-slate-200/50 shadow-inner">
+                        <div 
+                          className={`h-full rounded-full transition-all duration-500 ${barColor}`} 
+                          style={{ width: `${porcentajeUso}%` }} 
+                        />
+                      </div>
+                    </div>
+
+                    {/* Consumo por mes con Sparkline (Punto 2) */}
+                    {institucion.consumoPorMes && Object.keys(institucion.consumoPorMes).length > 0 ? (
+                      <div className="mt-2 pt-3 border-t border-slate-100 flex flex-col flex-1">
+                        <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1 flex items-center">
+                          <BarChart2 className="mr-1 text-brand-500" size={14} />
+                          Tendencia de Consumo
+                        </h4>
+                        
+                        <div className="h-28 w-full mt-2">
+                          <ResponsiveContainer width="99%" height="100%" minWidth={1} minHeight={1}>
+                            <AreaChart data={Object.entries(institucion.consumoPorMes).sort(([a], [b]) => a.localeCompare(b)).map(([mes, consumo]) => ({ name: new Date(mes + '-01T00:00:00').toLocaleDateString('es-ES', { month: 'short' }).toUpperCase(), consumo, mesRaw: mes }))} margin={{ top: 5, right: 0, left: 0, bottom: 0 }}>
+                              <defs>
+                                <linearGradient id={`color-${institucion.id}`} x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="5%" stopColor="#ff5105" stopOpacity={0.4}/>
+                                  <stop offset="95%" stopColor="#ff5105" stopOpacity={0}/>
+                                </linearGradient>
+                              </defs>
+                              <Tooltip 
+                                formatter={(value) => [value.toLocaleString(), 'Consultas']}
+                                contentStyle={{ 
+                                  borderRadius: '12px', 
+                                  background: 'rgba(255, 255, 255, 0.95)', 
+                                  backdropFilter: 'blur(10px)',
+                                  border: '1px solid rgba(0, 0, 0, 0.08)', 
+                                  boxShadow: '0 8px 30px rgba(0, 0, 0, 0.1)', 
+                                  fontSize: '12px',
+                                  color: '#1e293b'
+                                }}
+                                itemStyle={{ color: '#ff5105' }}
+                                labelStyle={{ fontWeight: 'bold', color: '#64748b', textTransform: 'uppercase' }}
+                              />
+                              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 9, fill: '#64748b', fontWeight: '500'}} height={14} dy={5} />
+                              <Area type="monotone" dataKey="consumo" stroke="#ff5105" strokeWidth={2} fillOpacity={1} fill={`url(#color-${institucion.id})`} />
+                            </AreaChart>
+                          </ResponsiveContainer>
+                        </div>
+
+                        {(canEdit || canDelete) && (
+                          <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-dashed border-slate-100">
+                            {Object.entries(institucion.consumoPorMes).sort(([a], [b]) => a.localeCompare(b)).map(([mes, consumo]) => (
+                               <div key={mes} className="group/item flex items-center text-xs bg-brand-50 border border-brand-100 rounded px-2 py-1 shadow-sm transition-all hover:border-brand-300">
+                                 <span className="font-bold text-brand-850 pr-1.5 border-r border-brand-200 mr-1.5">{new Date(mes + '-01T00:00:00').toLocaleDateString('es-ES', { month: 'short' }).toUpperCase()}</span>
+                                 <span className="text-brand-700 font-extrabold mr-1">{consumo.toLocaleString()}</span>
+                                 
+                                 <div className="flex space-x-0.5 opacity-0 group-hover/item:opacity-100 transition-opacity duration-200 w-0 overflow-hidden group-hover/item:w-auto group-hover/item:ml-1">
+                                    {canEdit && <button onClick={() => { setInstitucionSeleccionada(institucion); setMesSeleccionadoParaEditar(mes); setShowEditConsumoModal(true); }} className="text-slate-500 hover:text-blue-600 bg-white hover:bg-slate-50 rounded p-1 transition-colors" title="Editar"><Edit3 size={11} /></button>}
+                                    {canDelete && <button onClick={() => handleEliminarConsumoMensual(institucion, mes)} className="text-slate-500 hover:text-red-655 bg-white hover:bg-slate-50 rounded p-1 transition-colors" title="Eliminar"><Trash2 size={11} /></button>}
+                                 </div>
+                               </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="mt-2 pt-6 pb-4 border-t border-slate-100 flex flex-col items-center justify-center flex-1">
+                        <div className="bg-slate-50 p-3 rounded-full mb-2">
+                          <BarChart2 className="text-slate-400" size={20} />
+                        </div>
+                        <p className="text-[11px] text-slate-550 font-bold uppercase tracking-wider text-center">Aún sin movimientos</p>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            );
-          })
+                </div>
+              );
+            })}
+          </div>
         )}
         
         {totalPages > 1 && (
-          <div className="mt-8 pt-4 flex justify-between items-center border-t border-gray-200">
-            <span className="text-sm font-medium text-gray-500 mt-4">Mostrando pág {currentPage} de {totalPages}</span>
-            <div className="space-x-2 mt-4">
-              <button onClick={() => setCurrentPage(p => p - 1)} disabled={currentPage === 1} className="px-4 py-2 border rounded-lg hover:bg-gray-100 disabled:opacity-50 text-sm font-bold text-gray-700 transition-colors">Anterior</button>
-              <button onClick={() => setCurrentPage(p => p + 1)} disabled={currentPage === totalPages} className="px-4 py-2 border rounded-lg hover:bg-gray-100 disabled:opacity-50 text-sm font-bold text-gray-700 transition-colors">Siguiente</button>
+          <div className="mt-8 pt-4 flex justify-between items-center border-t border-slate-200">
+            <span className="text-sm font-medium text-slate-500">Mostrando pág {currentPage} de {totalPages}</span>
+            <div className="space-x-2">
+              <button onClick={() => setCurrentPage(p => p - 1)} disabled={currentPage === 1} className="px-4 py-2 border border-slate-350 bg-white rounded-lg text-slate-655 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all font-medium text-sm shadow-sm">Anterior</button>
+              <button onClick={() => setCurrentPage(p => p + 1)} disabled={currentPage === totalPages} className="px-4 py-2 border border-slate-350 bg-white rounded-lg text-slate-655 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all font-medium text-sm shadow-sm">Siguiente</button>
             </div>
           </div>
         )}

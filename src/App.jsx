@@ -1,10 +1,12 @@
 // src/App.jsx
 import React, { useState, useEffect } from 'react';
 import { Routes, Route } from 'react-router-dom';
+import { Toaster } from './components/sileo';
 import Navbar from './components/Navbar';
 import Dashboard from './components/Dashboard';
 import DashboardFacturacion from './components/DashboardFacturacion'; // ✨ NUEVO
 import Instituciones from './components/Instituciones';
+import CargasXML from './components/CargasXML'; // ✨ NUEVO
 import Admin from './components/Admin';
 import Login from './components/Login';
 import Facturacion from './components/Facturacion';
@@ -57,7 +59,7 @@ function App() {
 
   if (loading) {
     return (
-      <div className="bg-gray-50 min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#1e3a5f' }}>
         <div className="text-center">
           <div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-gray-600 font-medium">Verificando sesión...</p>
@@ -68,6 +70,14 @@ function App() {
 
   return (
     <div className="bg-gray-50 min-h-screen">
+    <Toaster 
+      position="top-center" 
+      offset="24px"
+      theme="light"
+      options={{ 
+        fill: '#1e3a5f'
+      }} 
+    />
       {isAuthenticated && (
         <Navbar userName={userName || userEmail} userRole={userRole} onLogout={handleLogout} />
       )}
@@ -81,6 +91,7 @@ function App() {
               <Route path="/dashboard" element={<Dashboard onExportExcel={userRole === 'usuario' ? handleRegisterExportFunction : null} />} />
               <Route path="/dashboard-facturacion" element={<DashboardFacturacion />} />
               <Route path="/instituciones" element={<Instituciones />} />
+              <Route path="/cargas-xml" element={<CargasXML userRole={userRole} />} />
               <Route path="/facturacion" element={<Facturacion />} />
               {userRole === 'admin' && <Route path="/admin" element={<Admin />} />}
             </>
