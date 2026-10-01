@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { BarChart2, TrendingUp, AlertCircle, Loader2, RefreshCw, Building, Search, X, Clock } from 'lucide-react';
 import { useInstituciones } from '../hooks/useFirebase';
-import * as XLSX from 'xlsx';
+import { generarReporteConsumoExcel } from '../utils/reporteConsumo';
 
 // Componente para la barra de progreso (Renovado para modo claro)
 const ProgressBar = ({ value, max }) => {
@@ -39,260 +39,9 @@ const Dashboard = ({ onExportExcel }) => {
   const generarReporteExcel = async () => {
     try {
       setIsExporting(true);
-      const workbook = XLSX.utils.book_new();
+      const nombreArchivo = generarReporteConsumoExcel(instituciones);
 
-      const institucionesPendientes = instituciones.filter(i => i.estado === 'pendiente').length;
-      const institucionesActivas = instituciones.filter(i => i.estado === 'activo' || !i.estado).length;
-      const institucionesVencidas = instituciones.filter(i => i.estado === 'vencido').length;
-      const totalConsultasAsignadas = instituciones.reduce((total, inst) => total + (inst.contrato?.asignadas || 0), 0);
-      const totalConsultasConsumidas = instituciones.reduce((total, inst) => total + (inst.contrato?.consumidas || 0), 0);
-      const totalConsultasRestantes = totalConsultasAsignadas - totalConsultasConsumidas;
-
-      const dataDashboard = [
-        ['REPORTE DE CONSUMO MiPymes - BICSA'],
-        [''],
-        ['Fecha de Generación:', new Date().toLocaleDateString('es-ES')],
-        ['Hora de Generación:', new Date().toLocaleTimeString('es-ES')],
-        [''],
-        ['=== ESTADÍSTICAS GENERALES ==='],
-        ['Total de Instituciones:', instituciones.length],
-        ['Instituciones Activas:', institucionesActivas],
-        ['Instituciones Pendientes:', institucionesPendientes],
-        ['Instituciones Vencidas:', institucionesVencidas],
-        ['Total Consultas Asignadas:', totalConsultasAsignadas],
-        ['Total Consultas Consumidas:', totalConsultasConsumidas],
-        ['Total Consultas Restantes:', totalConsultasRestantes],
-        ['Promedio de Uso General (%):', totalConsultasAsignadas > 0 ? `${((totalConsultasConsumidas / totalConsultasAsignadas) * 100).toFixed(1)}%` : '0%'],
-        [''],
-        ['=== RESUMEN POR ESTADO ==='],
-        ['Instituciones Activas:', institucionesActivas],
-        ['Instituciones Pendientes:', institucionesPendientes],
-        ['Instituciones Vencidas (No Renovadas):', institucionesVencidas],
-        ['Instituciones con Historial (Renovaciones):', instituciones.filter(i => i.historial && i.historial.length > 0).length],
-        [''],
-        ['=== CONSUMO DETALLADO POR INSTITUCIÓN ==='],
-        ['Institución', 'Estado', 'Consultas Asignadas', 'Consultas Consumidas', 'Consultas Restantes', '% Consumo', 'Fecha Inicio', 'Fecha Vencimiento', 'Duración (meses)', 'Períodos Anteriores']
-      ];
-
-      instituciones.forEach(institucion => {
-        const asignadas = institucion.contrato?.asignadas || 0;
-        const consumidas = institucion.contrato?.consumidas || 0;
-        const restantes = asignadas - consumidas;
-        const porcentajeUso = asignadas > 0 ? ((consumidas / asignadas) * 100).toFixed(1) : 0;
-        const periodosAnteriores = institucion.historial ? institucion.historial.length : 0;
-        
-        dataDashboard.push([
-          institucion.nombre,
-          institucion.estado || 'activo',
-          asignadas,
-          consumidas,
-          restantes,
-          `${porcentajeUso}%`,
-          institucion.contrato?.fechaInicio || institucion.fechaCreacion,
-          institucion.contrato?.fechaFin || 'N/A',
-          institucion.contrato?.duracionMeses || 0,
-          periodosAnteriores
-        ]);
-      });
-
-      dataDashboard.push(['']);
-      dataDashboard.push(['=== CONSUMO MENSUAL DETALLADO ===']);
-      dataDashboard.push(['Institución', 'Mes', 'Consumo Registrado', 'Estado Institución']);
-
-      instituciones.forEach(institucion => {
-        if (institucion.consumoPorMes && Object.keys(institucion.consumoPorMes).length > 0) {
-          Object.entries(institucion.consumoPorMes)
-            .sort(([a], [b]) => a.localeCompare(b))
-            .forEach(([mes, consumo]) => {
-              dataDashboard.push([
-                institucion.nombre, 
-                mes, 
-                consumo, 
-                institucion.estado || 'activo'
-              ]);
-            });
-        }
-      });
-
-      const worksheetDashboard = XLSX.utils.aoa_to_sheet(dataDashboard);
-      
-      const colWidths = [
-        { wch: 30 }, { wch: 15 }, { wch: 20 }, { wch: 20 }, { wch: 20 }, 
-        { wch: 12 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 18 }
-      ];
-      worksheetDashboard['!cols'] = colWidths;
-      XLSX.utils.book_append_sheet(workbook, worksheetDashboard, 'Dashboard');
-
-      const dataInstituciones = [
-        ['DETALLE COMPLETO DE INSTITUCIONES'],
-        [''],
-        ['Fecha de Generación:', new Date().toLocaleDateString('es-ES')],
-        [''],
-        ['ID', 'Nombre', 'Estado', 'Fecha Creación', 'Fecha Inicio Contrato', 'Fecha Vencimiento', 'Duración (meses)', 'Consultas Asignadas', 'Consultas Consumidas', 'Consultas Restantes', '% Consumo', 'Períodos Anteriores', 'Meses Registrados']
-      ];
-
-      instituciones.forEach((institucion, index) => {
-        const asignadas = institucion.contrato?.asignadas || 0;
-        const consumidas = institucion.contrato?.consumidas || 0;
-        const restantes = asignadas - consumidas;
-        const porcentajeUso = asignadas > 0 ? ((consumidas / asignadas) * 100).toFixed(1) : 0;
-        const periodosAnteriores = institucion.historial ? institucion.historial.length : 0;
-        const mesesRegistrados = institucion.consumoPorMes ? Object.keys(institucion.consumoPorMes).length : 0;
-
-        dataInstituciones.push([
-          index + 1,
-          institucion.nombre,
-          institucion.estado || 'activo',
-          institucion.fechaCreacion,
-          institucion.contrato?.fechaInicio || 'N/A',
-          institucion.contrato?.fechaFin || 'N/A',
-          institucion.contrato?.duracionMeses || 0,
-          asignadas,
-          consumidas,
-          restantes,
-          `${porcentajeUso}%`,
-          periodosAnteriores,
-          mesesRegistrados
-        ]);
-      });
-
-      dataInstituciones.push(['']);
-      dataInstituciones.push(['=== HISTORIAL DE RENOVACIONES ===']);
-      dataInstituciones.push(['Institución', 'Período #', 'Inicio Período', 'Fin Período', 'Duración (meses)', 'Consultas Asignadas', 'Consultas Consumidas', 'Consultas Restantes', '% Consumo', 'Fecha Renovación', 'Renovado Por', 'Comentario']);
-
-      instituciones.forEach(institucion => {
-        if (institucion.historial && institucion.historial.length > 0) {
-          const historialOrdenado = [...institucion.historial].reverse();
-          
-          historialOrdenado.forEach((periodo, index) => {
-            const numeroPeriodo = index + 1;
-            const asignadasPeriodo = periodo.consultasAsignadas || 0;
-            const consumidasPeriodo = periodo.consultasConsumidas || 0;
-            const restantesPeriodo = asignadasPeriodo - consumidasPeriodo;
-            const porcentajePeriodo = asignadasPeriodo > 0 ? ((consumidasPeriodo / asignadasPeriodo) * 100).toFixed(1) : 0;
-            
-            dataInstituciones.push([
-              institucion.nombre,
-              numeroPeriodo,
-              new Date(periodo.periodoInicio).toLocaleDateString('es-ES'),
-              new Date(periodo.periodoFin).toLocaleDateString('es-ES'),
-              periodo.duracionMeses || 0,
-              asignadasPeriodo,
-              consumidasPeriodo,
-              restantesPeriodo,
-              `${porcentajePeriodo}%`,
-              new Date(periodo.fechaRenovacion).toLocaleDateString('es-ES'),
-              periodo.renovadoPor || 'N/A',
-              periodo.comentario || 'Sin comentarios'
-            ]);
-          });
-        }
-      });
-
-      const worksheetInstituciones = XLSX.utils.aoa_to_sheet(dataInstituciones);
-      const colWidthsInst = [
-        { wch: 5 }, { wch: 25 }, { wch: 15 }, { wch: 15 }, { wch: 18 }, 
-        { wch: 18 }, { wch: 15 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, 
-        { wch: 12 }, { wch: 18 }, { wch: 15 }, { wch: 15 }, { wch: 30 }
-      ];
-      worksheetInstituciones['!cols'] = colWidthsInst;
-      XLSX.utils.book_append_sheet(workbook, worksheetInstituciones, 'Instituciones');
-
-      const dataConsumoMensual = [
-        ['CONSUMO MENSUAL DETALLADO POR INSTITUCIÓN'],
-        [''],
-        ['Fecha de Generación:', new Date().toLocaleDateString('es-ES')],
-        [''],
-        ['Institución', 'Mes/Año', 'Consumo Registrado', 'Estado Institución', '% del Total Asignado']
-      ];
-
-      const consumosPorMes = [];
-      instituciones.forEach(institucion => {
-        if (institucion.consumoPorMes && Object.keys(institucion.consumoPorMes).length > 0) {
-          Object.entries(institucion.consumoPorMes)
-            .sort(([a], [b]) => a.localeCompare(b))
-            .forEach(([mes, consumo]) => {
-              const totalAsignadas = institucion.contrato?.asignadas || 0;
-              const porcentajeDelTotal = totalAsignadas > 0 ? ((consumo / totalAsignadas) * 100).toFixed(2) : 0;
-              
-              consumosPorMes.push([
-                institucion.nombre,
-                mes,
-                consumo,
-                institucion.estado || 'activo',
-                `${porcentajeDelTotal}%`
-              ]);
-            });
-        }
-      });
-
-      consumosPorMes.sort((a, b) => a[1].localeCompare(b[1]));
-      dataConsumoMensual.push(...consumosPorMes);
-
-      const worksheetConsumo = XLSX.utils.aoa_to_sheet(dataConsumoMensual);
-      worksheetConsumo['!cols'] = [
-        { wch: 30 }, { wch: 12 }, { wch: 18 }, { wch: 15 }, { wch: 18 }
-      ];
-      XLSX.utils.book_append_sheet(workbook, worksheetConsumo, 'Consumo Mensual');
-
-      const dataAnalisis = [
-        ['ANÁLISIS ESTADÍSTICO DEL SISTEMA'],
-        [''],
-        ['Fecha de Generación:', new Date().toLocaleDateString('es-ES')],
-        [''],
-        ['=== MÉTRICAS GENERALES ==='],
-        ['Total de Instituciones:', instituciones.length],
-        ['Instituciones con Historial:', instituciones.filter(i => i.historial && i.historial.length > 0).length],
-        ['Total de Renovaciones Registradas:', instituciones.reduce((total, inst) => total + (inst.historial ? inst.historial.length : 0), 0)],
-        ['Promedio de Renovaciones por Institución:', instituciones.length > 0 ? (instituciones.reduce((total, inst) => total + (inst.historial ? inst.historial.length : 0), 0) / instituciones.length).toFixed(2) : 0],
-        [''],
-        ['=== ANÁLISIS DE CONSUMO ==='],
-        ['Institución', 'Consultas Asignadas', 'Consultas Consumidas', 'Consultas Restantes', '% Uso', 'Eficiencia', 'Períodos Históricos', 'Promedio Consumo/Mes']
-      ];
-
-      instituciones.forEach(institucion => {
-        const asignadas = institucion.contrato?.asignadas || 0;
-        const consumidas = institucion.contrato?.consumidas || 0;
-        const restantes = asignadas - consumidas;
-        const porcentajeUso = asignadas > 0 ? ((consumidas / asignadas) * 100).toFixed(1) : 0;
-        const duracionMeses = institucion.contrato?.duracionMeses || 1;
-        const promedioConsumoMes = duracionMeses > 0 ? Math.round(consumidas / duracionMeses) : 0;
-        const periodosHistoricos = institucion.historial ? institucion.historial.length : 0;
-        
-        let eficiencia = 'N/A';
-        if (asignadas > 0) {
-          const uso = (consumidas / asignadas) * 100;
-          if (uso < 50) eficiencia = 'Bajo Uso';
-          else if (uso < 80) eficiencia = 'Uso Normal';
-          else if (uso < 95) eficiencia = 'Uso Óptimo';
-          else eficiencia = 'Uso Crítico';
-        }
-
-        dataAnalisis.push([
-          institucion.nombre,
-          asignadas,
-          consumidas,
-          restantes,
-          `${porcentajeUso}%`,
-          eficiencia,
-          periodosHistoricos,
-          promedioConsumoMes
-        ]);
-      });
-
-      const worksheetAnalisis = XLSX.utils.aoa_to_sheet(dataAnalisis);
-      worksheetAnalisis['!cols'] = [
-        { wch: 30 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 10 }, 
-        { wch: 15 }, { wch: 18 }, { wch: 20 }
-      ];
-      XLSX.utils.book_append_sheet(workbook, worksheetAnalisis, 'Análisis Estadístico');
-
-      const fechaHora = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
-      const nombreArchivo = `SegConsumo_Reporte_Usuario_${fechaHora}.xlsx`;
-
-      XLSX.writeFile(workbook, nombreArchivo);
-
-      alert(`¡Reporte Excel generado exitosamente!\n\nArchivo: ${nombreArchivo}\n\nIncluye:\n- Dashboard: Estadísticas generales\n- Instituciones: Datos detallados e historial\n- Consumo Mensual: Registro completo\n- Análisis Estadístico: Métricas avanzadas`);
+      alert(`¡Reporte Excel generado exitosamente!\n\nArchivo: ${nombreArchivo}\n\nIncluye:\n- Dashboard: Estadísticas generales\n- Instituciones: Datos detallados e historial\n- Monitoreo Contratos: Vencidos y por vencer\n- Consumo Mensual: Registro completo\n- Análisis Estadístico: Métricas avanzadas`);
 
     } catch (error) {
       console.error('Error al generar reporte Excel:', error);
@@ -324,62 +73,6 @@ const Dashboard = ({ onExportExcel }) => {
 
   const paginate = (pageNumber) => setCurrentPage(pageNumber);
 
-  const obtenerNotificaciones = () => {
-    const notificaciones = [];
-    
-    instituciones.forEach(institucion => {
-      if (institucion.contrato?.fechaFin && (institucion.estado === 'activo' || !institucion.estado)) {
-        const hoy = new Date();
-        let vencimiento;
-        
-        if (institucion.contrato.fechaFin.includes('/')) {
-          const partes = institucion.contrato.fechaFin.split('/');
-          vencimiento = new Date(`${partes[2]}-${partes[1].padStart(2, '0')}-${partes[0].padStart(2, '0')}`);
-        } else {
-          vencimiento = new Date(institucion.contrato.fechaFin);
-        }
-
-        if (!isNaN(vencimiento.getTime())) {
-          const calcularMesesHastaVencimiento = (fechaActual, fechaVencimiento) => {
-            const añoActual = fechaActual.getFullYear();
-            const mesActual = fechaActual.getMonth();
-            const diaActual = fechaActual.getDate();
-            
-            const añoVencimiento = fechaVencimiento.getFullYear();
-            const mesVencimiento = fechaVencimiento.getMonth();
-            const diaVencimiento = fechaVencimiento.getDate();
-            
-            let mesesDiferencia = (añoVencimiento - añoActual) * 12 + (mesVencimiento - mesActual);
-            
-            if (diaVencimiento < diaActual) {
-              mesesDiferencia--;
-            }
-            
-            return Math.max(0, mesesDiferencia);
-          };
-          
-          const diffMonths = calcularMesesHastaVencimiento(hoy, vencimiento);
-          
-          if (diffMonths >= 0 && diffMonths <= 2) {
-            const diffTime = vencimiento.getTime() - hoy.getTime();
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-            
-            notificaciones.push({
-              nombre: institucion.nombre,
-              fecha: institucion.contrato.fechaFin,
-              meses: diffMonths,
-              dias: diffDays,
-              tipo: diffMonths <= 1 ? 'critico' : 'advertencia'
-            });
-          }
-        }
-      }
-    });
-    
-    return notificaciones.sort((a, b) => a.meses - b.meses);
-  };
-
-  const notificaciones = obtenerNotificaciones();
 
   // Mostrar loading
   if (loading && instituciones.length === 0) {
@@ -439,7 +132,7 @@ const Dashboard = ({ onExportExcel }) => {
               Dashboard de Consumo
             </h1>
             <p className="text-slate-500 font-medium mt-1">
-              Monitoreo de Instituciones y Contratos
+              Monitoreo de Instituciones
               {loading && <span className="text-brand-500 ml-2 animate-pulse text-sm">🔄 Sincronizando...</span>}
             </p>
           </div>
@@ -448,54 +141,6 @@ const Dashboard = ({ onExportExcel }) => {
           </div>
         </div>
       </header>
-
-      {/* Notificaciones de Vencimiento */}
-      {notificaciones.length > 0 && (
-        <div className="mb-8 relative z-10">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {notificaciones.map((notif, index) => (
-            <div
-              key={index}
-              className={`p-5 rounded-2xl border-l-4 flex items-start space-x-4 shadow-md border ${
-                notif.tipo === 'critico'
-                  ? 'bg-red-50 border-red-200 text-red-800 border-red-500'
-                  : 'bg-amber-50 border-amber-200 text-amber-800 border-amber-500'
-              }`}
-            >
-              <div className="flex-shrink-0 mt-1">
-                {notif.tipo === 'critico' ? (
-                  <AlertCircle className="w-6 h-6 text-red-600" />
-                ) : (
-                  <Clock className="w-6 h-6 text-amber-600" />
-                )}
-              </div>
-              <div className="flex-1">
-                <div className="flex items-center justify-between mb-1">
-                  <p className="font-bold text-base">
-                    {notif.tipo === 'critico' ? '¡Contrato crítico!' : 'Atención: Vencimiento próximo'}
-                  </p>
-                  <span className={`text-xs font-bold px-3 py-1 rounded-full ${
-                    notif.tipo === 'critico' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'
-                  }`}>
-                    {notif.meses === 0 ? `${notif.dias} días restantes` : 
-                    notif.meses === 1 ? '1 mes restante' : 
-                    `${notif.meses} meses restantes`}
-                  </span>
-                </div>
-                <p className="text-sm">
-                  <strong className="text-slate-900">{notif.nombre}</strong> - Vence: <strong>{notif.fecha}</strong>
-                  {notif.tipo === 'critico' && (
-                    <span className="block mt-2 text-red-800 font-semibold bg-red-100/50 border border-red-200/50 p-2 rounded-lg text-xs">
-                      ⚠️ Sugerimos contactar urgentemente para renovación.
-                    </span>
-                  )}
-                </p>
-              </div>
-            </div>
-          ))}
-          </div>
-        </div>
-      )}
 
       {/* Buscador */}
       {instituciones.length > 0 && (

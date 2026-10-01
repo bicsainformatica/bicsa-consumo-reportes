@@ -98,6 +98,7 @@ export const useInstituciones = () => {
       const institucionCompleta = {
         nombre: nuevaInstitucion.nombre,
         categoria: nuevaInstitucion.categoria || 'Sin Categoría',
+        seguimientoConsumo: nuevaInstitucion.seguimientoConsumo || null,
         montoTotal: nuevaInstitucion.montoTotal || 0, // ✨ NUEVO
         plazoMeses: nuevaInstitucion.plazoMeses || 1, // ✨ NUEVO
         estado: 'activo',
@@ -166,6 +167,7 @@ export const useInstituciones = () => {
         await updateDoc(institucionRef, {
           nombre: datosActualizados.nombre,
           categoria: datosActualizados.categoria || 'Sin Categoría',
+          seguimientoConsumo: datosActualizados.seguimientoConsumo || null,
           montoTotal: datosActualizados.montoTotal || 0,
           plazoMeses: datosActualizados.plazoMeses || 1,
           estado: 'activo',
@@ -191,6 +193,7 @@ export const useInstituciones = () => {
         await updateDoc(institucionRef, {
           nombre: datosActualizados.nombre,
           categoria: datosActualizados.categoria || 'Sin Categoría',
+          seguimientoConsumo: datosActualizados.seguimientoConsumo || null,
           montoTotal: datosActualizados.montoTotal || 0,
           plazoMeses: datosActualizados.plazoMeses || 1,
           estado: datosActualizados.estado || institucionActual.estado || 'activo',

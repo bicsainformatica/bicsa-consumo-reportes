@@ -1,8 +1,9 @@
 // src/components/Navbar.jsx
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { LogOut, LayoutDashboard, Building2, ShieldCheck, User, Shield, Calculator, Menu, X, PieChart, UploadCloud } from 'lucide-react';
+import { LogOut, LayoutDashboard, Building2, ShieldCheck, User, Shield, Calculator, Menu, X, PieChart, UploadCloud, ShieldAlert } from 'lucide-react';
 import WeatherWidget from './WeatherWidget'; 
+import { APP_NOMBRE, APP_VERSION } from '../version';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { onAuthStateChanged } from 'firebase/auth'; // ✨ NUEVO
@@ -65,7 +66,7 @@ const Navbar = ({ userName, userRole, onLogout }) => {
               </div>
               
               <h1 className="text-md font-extrabold truncate tracking-wide hidden lg:block text-white drop-shadow-sm pl-2">
-                Sistema Web Consumo Mipymes - BICSA V3.1
+                {APP_NOMBRE} V{APP_VERSION}
               </h1>
             </div>
 
@@ -150,6 +151,15 @@ const Navbar = ({ userName, userRole, onLogout }) => {
                 >
                   <Building2 className="mr-3 text-slate-500" size={18}/> Instituciones
                 </button>
+
+                {(userRole === 'admin' || permisos?.monitoreoContratos?.acceso !== false) && (
+                <button 
+                  onClick={() => handleNavigation('/monitoreo-contratos')} 
+                  className={`w-full flex items-center px-4 py-3 rounded-xl font-bold text-sm transition-all duration-200 shadow-sm ${currentPath.includes('/monitoreo-contratos') ? 'bg-brand-50 text-[#ff5105] border-l-4 border-[#ff5105]' : 'bg-white text-slate-600 border-l-4 border-transparent hover:bg-slate-100 hover:text-slate-800'}`}
+                >
+                  <ShieldAlert className="mr-3 text-slate-500" size={18}/> Monitoreo Contratos
+                </button>
+                )}
 
                 <button 
                   onClick={() => handleNavigation('/cargas-xml')} 

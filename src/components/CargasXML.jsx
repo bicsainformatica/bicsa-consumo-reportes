@@ -5,7 +5,7 @@ import { useInstituciones, logAuditoria } from '../hooks/useFirebase';
 import { db } from '../firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { sileo } from './sileo';
-import * as XLSX from 'xlsx';
+import { descargarLibro, formatearFecha, hojaDesdeObjetos } from '../utils/excel';
 
 const CargasXML = ({ userRole }) => {
   const { instituciones, loading, error } = useInstituciones();
@@ -102,17 +102,15 @@ const CargasXML = ({ userRole }) => {
       'Institución': inst.nombre,
       'Plan / Categoría': inst.categoria || 'Sin Categoría',
       'Cargas XML': 'SÍ',
-      'Fecha Primera Carga XML': inst.fechaPrimeraCargaXML ? new Date(inst.fechaPrimeraCargaXML).toLocaleDateString('es-ES') : 'No Especificada',
-      'Inicio Contrato': inst.contrato?.fechaInicio || 'N/A',
-      'Vencimiento Contrato': inst.contrato?.fechaFin || 'N/A'
+      'Fecha Primera Carga XML': inst.fechaPrimeraCargaXML ? formatearFecha(inst.fechaPrimeraCargaXML) : 'No Especificada',
+      'Inicio Contrato': formatearFecha(inst.contrato?.fechaInicio),
+      'Vencimiento Contrato': formatearFecha(inst.contrato?.fechaFin)
     }));
 
-    const ws = XLSX.utils.json_to_sheet(data);
-    ws['!cols'] = [{wch: 6}, {wch: 35}, {wch: 22}, {wch: 15}, {wch: 25}, {wch: 15}, {wch: 20}];
-    
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Cargas_XML_BICSA');
-    XLSX.writeFile(wb, `BICSA_Reporte_Cargas_XML_${new Date().toISOString().split('T')[0]}.xlsx`);
+    descargarLibro(
+      [{ nombre: 'Cargas_XML_BICSA', hoja: hojaDesdeObjetos(data) }],
+      `BICSA_Reporte_Cargas_XML_${new Date().toISOString().split('T')[0]}.xlsx`
+    );
   };
 
   const institucionesFiltradas = instituciones.filter(inst => {

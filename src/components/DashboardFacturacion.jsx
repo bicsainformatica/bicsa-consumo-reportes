@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { PieChart, Calculator, AlertCircle, Clock, CheckCircle, FileSpreadsheet, Search, Filter, Loader2, DollarSign } from 'lucide-react';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { db } from '../firebase';
-import * as XLSX from 'xlsx';
+import { descargarLibro, hojaDesdeObjetos } from '../utils/excel';
 
 const DashboardFacturacion = () => {
   const [facturas, setFacturas] = useState([]);
@@ -87,11 +87,10 @@ const DashboardFacturacion = () => {
         'Plazo (Meses)': f.plazoMeses
       };
     });
-    const ws = XLSX.utils.json_to_sheet(data);
-    ws['!cols'] = [{wch: 35}, {wch: 15}, {wch: 20}, {wch: 20}, {wch: 20}, {wch: 15}, {wch: 15}, {wch: 15}, {wch: 12}];
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Dashboard_Financiero');
-    XLSX.writeFile(wb, `Resumen_Cuentas_${new Date().toISOString().split('T')[0]}.xlsx`);
+    descargarLibro(
+      [{ nombre: 'Dashboard_Financiero', hoja: hojaDesdeObjetos(data) }],
+      `Resumen_Cuentas_${new Date().toISOString().split('T')[0]}.xlsx`
+    );
   };
 
   const totalCobrar = datosFiltrados.reduce((sum, f) => sum + (f.cuotas?.filter(c => c.estado === 'pendiente').reduce((s,c) => s + c.monto, 0) || 0), 0);

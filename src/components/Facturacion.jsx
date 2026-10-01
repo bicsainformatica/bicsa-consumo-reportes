@@ -10,7 +10,7 @@ import { collection, addDoc, updateDoc, doc, onSnapshot, query, orderBy, serverT
 import { onAuthStateChanged } from 'firebase/auth';
 import { db, auth } from '../firebase';
 import { logAuditoria } from '../hooks/useFirebase';
-import * as XLSX from 'xlsx';
+import { descargarLibro, formatearFechaHora, hojaDesdeObjetos } from '../utils/excel';
 
 export const ModalAuditoria = ({ institucionId, institucionNombre, onClose }) => {
   const [logs, setLogs] = useState([]);
@@ -48,15 +48,15 @@ export const ModalAuditoria = ({ institucionId, institucionNombre, onClose }) =>
 
   const exportarExcel = () => {
     const dataToExport = logsFiltrados.map(log => ({
-      Fecha: log.fecha?.toDate()?.toLocaleString('es-ES') || 'Reciente',
+      Fecha: formatearFechaHora(log.fecha),
       Acción: log.accion,
       Detalles: log.detalles,
       Usuario: log.usuario
     }));
-    const ws = XLSX.utils.json_to_sheet(dataToExport);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Auditoría');
-    XLSX.writeFile(wb, `Auditoria_${institucionNombre.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.xlsx`);
+    descargarLibro(
+      [{ nombre: 'Auditoría', hoja: hojaDesdeObjetos(dataToExport) }],
+      `Auditoria_${institucionNombre.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.xlsx`
+    );
   };
 
   return (
